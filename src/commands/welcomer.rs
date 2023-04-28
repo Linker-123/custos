@@ -13,7 +13,7 @@ use twilight_model::{
     },
     channel::ChannelType,
     gateway::payload::incoming::InteractionCreate,
-    http::interaction::{InteractionResponse, InteractionResponseType},
+    http::interaction::InteractionResponseType,
 };
 use twilight_util::builder::{
     command::{ChannelBuilder, CommandBuilder, StringBuilder, SubCommandBuilder},
@@ -21,7 +21,7 @@ use twilight_util::builder::{
 };
 
 use super::CustosCommand;
-use crate::{ctx::Context, schemas::GuildConfig};
+use crate::{ctx::Context, schemas::GuildConfig, util::send};
 
 pub struct WelcomerCommand {}
 
@@ -98,20 +98,15 @@ impl CustosCommand for WelcomerCommand {
             )
             .await?;
 
-            interactions
-                .create_response(
-                    inter.id,
-                    &inter.token,
-                    &InteractionResponse {
-                        kind: InteractionResponseType::ChannelMessageWithSource,
-                        data: Some(
-                            InteractionResponseDataBuilder::new()
-                                .content(format!("Welcome channel set to <#{}>", channel_id))
-                                .build(),
-                        ),
-                    },
-                )
-                .await?;
+            send(
+                &interactions,
+                &inter,
+                InteractionResponseType::ChannelMessageWithSource,
+                InteractionResponseDataBuilder::new()
+                    .content(format!("Welcome channel set to <#{}>", channel_id))
+                    .build(),
+            )
+            .await?;
         } else if sub_command.name == "set-message" {
             let guild_config = match GuildConfig::get_guild(context, guild_id).await? {
                 Some(g) => g,
@@ -128,20 +123,16 @@ impl CustosCommand for WelcomerCommand {
                 interactions: InteractionClient<'_>,
                 inter: Box<InteractionCreate>,
             ) -> Result<()> {
-                interactions
-                    .create_response(
-                        inter.id,
-                        &inter.token,
-                        &InteractionResponse {
-                            kind: InteractionResponseType::ChannelMessageWithSource,
-                            data: Some(
-                                InteractionResponseDataBuilder::new()
-                                    .content("You have to set a welcome channel first.")
-                                    .build(),
-                            ),
-                        },
-                    )
-                    .await?;
+                send(
+                    &interactions,
+                    &inter,
+                    InteractionResponseType::ChannelMessageWithSource,
+                    InteractionResponseDataBuilder::new()
+                        .content("You have to set a welcome channel first.")
+                        .build(),
+                )
+                .await?;
+
                 Ok(())
             }
 
@@ -176,20 +167,15 @@ impl CustosCommand for WelcomerCommand {
             )
             .await?;
 
-            interactions
-                .create_response(
-                    inter.id,
-                    &inter.token,
-                    &InteractionResponse {
-                        kind: InteractionResponseType::ChannelMessageWithSource,
-                        data: Some(
-                            InteractionResponseDataBuilder::new()
-                                .content("Welcome message has been set.")
-                                .build(),
-                        ),
-                    },
-                )
-                .await?;
+            send(
+                &interactions,
+                &inter,
+                InteractionResponseType::ChannelMessageWithSource,
+                InteractionResponseDataBuilder::new()
+                    .content("Welcome message has been set.")
+                    .build(),
+            )
+            .await?;
         }
 
         Ok(())

@@ -14,6 +14,7 @@ mod ctx;
 mod events;
 mod plugins;
 mod schemas;
+mod util;
 mod tags;
 
 #[tokio::main]
