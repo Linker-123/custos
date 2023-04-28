@@ -6,7 +6,7 @@ use twilight_gateway::stream::ShardRef;
 use twilight_model::{
     application::{command::CommandType, interaction::application_command::CommandData},
     gateway::payload::incoming::InteractionCreate,
-    http::interaction::InteractionResponseType,
+    http::interaction::{ InteractionResponseType},
 };
 use twilight_util::builder::{command::CommandBuilder, InteractionResponseDataBuilder};
 
