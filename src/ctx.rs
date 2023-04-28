@@ -4,7 +4,9 @@ use twilight_cache_inmemory::InMemoryCache;
 use twilight_http::{client::InteractionClient, Client as HttpClient};
 use twilight_model::{id::Id, oauth::Application};
 
-use crate::commands::{ping::PingCommand, welcomer::WelcomerCommand, CustosCommand};
+use crate::commands::{
+    anti_abuse::AntiAbuseCommand, debug::PingCommand, welcomer::WelcomerCommand, CustosCommand,
+};
 
 #[derive(Debug)]
 pub struct Context {
@@ -65,6 +67,7 @@ impl Context {
                 &[
                     PingCommand::get_command_info(),
                     WelcomerCommand::get_command_info(),
+                    AntiAbuseCommand::get_command_info(),
                 ],
             )
             .await?;

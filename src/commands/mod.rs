@@ -16,7 +16,8 @@ use twilight_model::{
 
 use crate::ctx::Context;
 
-pub mod ping;
+pub mod anti_abuse;
+pub mod debug;
 pub mod welcomer;
 
 #[async_trait]
@@ -26,6 +27,15 @@ pub trait CustosCommand {
     fn get_command_info() -> Command;
 
     async fn on_command_call(
+        _shard: ShardRef<'_>,
+        _context: &Arc<Context>,
+        _inter: Box<InteractionCreate>,
+        _command_data: Box<CommandData>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    async fn on_autocomplete_call(
         _shard: ShardRef<'_>,
         _context: &Arc<Context>,
         _inter: Box<InteractionCreate>,

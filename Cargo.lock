@@ -262,6 +262,7 @@ dependencies = [
  "bson",
  "chrono",
  "futures-util",
+ "lazy_static",
  "mongodb",
  "serde",
  "serde_json",

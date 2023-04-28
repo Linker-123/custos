@@ -44,7 +44,8 @@ impl CustosCommand for WelcomerCommand {
             )
             .option(
                 ChannelBuilder::new("channel", "The welcome channel.")
-                    .channel_types(vec![ChannelType::GuildText]),
+                    .channel_types(vec![ChannelType::GuildText])
+                    .required(true),
             ),
         )
         .option(
@@ -55,7 +56,8 @@ impl CustosCommand for WelcomerCommand {
             .option(
                 StringBuilder::new("value", "The welcome message.")
                     .min_length(1)
-                    .max_length(2000),
+                    .max_length(2000)
+                    .required(true),
             ),
         )
         .build()

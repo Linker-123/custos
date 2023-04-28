@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::sync::Arc;
 use twilight_gateway::{stream::ShardRef, Event};
 use twilight_model::{
-    application::interaction::InteractionData,
+    application::interaction::{InteractionData, InteractionType},
     gateway::payload::{
         incoming::{GuildCreate, MemberChunk},
         outgoing::RequestGuildMembers,
@@ -10,7 +10,9 @@ use twilight_model::{
 };
 
 use crate::{
-    commands::{ping::PingCommand, welcomer::WelcomerCommand, CustosCommand},
+    commands::{
+        anti_abuse::AntiAbuseCommand, debug::PingCommand, welcomer::WelcomerCommand, CustosCommand,
+    },
     ctx::Context,
     plugins,
 };
@@ -40,10 +42,28 @@ pub async fn process_event(
             match data {
                 InteractionData::ApplicationCommand(command_data) => {
                     if command_data.name == PingCommand::get_command_name() {
+                        // if inter.kind == InteractionType::ApplicationCommandAutocomplete {
+                        //     PingCommand::on_autocomplete_call(shard, context, inter, command_data)
+                        //         .await?;
+                        // } else {
                         PingCommand::on_command_call(shard, context, inter, command_data).await?;
+                        // }
                     } else if command_data.name == WelcomerCommand::get_command_name() {
                         WelcomerCommand::on_command_call(shard, context, inter, command_data)
                             .await?;
+                    } else if command_data.name == AntiAbuseCommand::get_command_name() {
+                        if inter.kind == InteractionType::ApplicationCommandAutocomplete {
+                            AntiAbuseCommand::on_autocomplete_call(
+                                shard,
+                                context,
+                                inter,
+                                command_data,
+                            )
+                            .await?;
+                        } else {
+                            AntiAbuseCommand::on_command_call(shard, context, inter, command_data)
+                                .await?;
+                        }
                     }
                 }
                 InteractionData::MessageComponent(_msg_comp) => {}

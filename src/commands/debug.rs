@@ -6,12 +6,12 @@ use twilight_gateway::stream::ShardRef;
 use twilight_model::{
     application::{command::CommandType, interaction::application_command::CommandData},
     gateway::payload::incoming::InteractionCreate,
-    http::interaction::{InteractionResponse, InteractionResponseType},
+    http::interaction::InteractionResponseType,
 };
 use twilight_util::builder::{command::CommandBuilder, InteractionResponseDataBuilder};
 
 use super::CustosCommand;
-use crate::ctx::Context;
+use crate::{ctx::Context, util};
 
 pub struct PingCommand {}
 
@@ -49,20 +49,15 @@ impl CustosCommand for PingCommand {
         );
 
         let interactions = context.get_interactions();
-        interactions
-            .create_response(
-                inter.id,
-                &inter.token,
-                &InteractionResponse {
-                    kind: InteractionResponseType::ChannelMessageWithSource,
-                    data: Some(
-                        InteractionResponseDataBuilder::new()
-                            .content(message)
-                            .build(),
-                    ),
-                },
-            )
-            .await?;
+        util::send(
+            &interactions,
+            &inter,
+            InteractionResponseType::ChannelMessageWithSource,
+            InteractionResponseDataBuilder::new()
+                .content(message)
+                .build(),
+        )
+        .await?;
         Ok(())
     }
 }
