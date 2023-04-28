@@ -25,9 +25,7 @@ use crate::ctx::Context;
 pub struct GuildConfig {
     #[serde(rename = "_id")]
     pub id: Id<GuildMarker>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub welcomer: Option<WelcomerConfig>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub anti_abuse: Option<AntiAbuseConfig>,
 }
 
@@ -57,7 +55,7 @@ impl GuildConfig {
         Ok(guild_cfg)
     }
 
-    pub async fn update_data_by_id_upsert(
+    pub async fn set_welcomer_data(
         ctx: &Arc<Context>,
         update: Document,
         guild_id: Id<GuildMarker>,
@@ -67,19 +65,6 @@ impl GuildConfig {
             .collection::<GuildConfig>("guild_configs")
             .update_one(
                 doc! { "_id": guild_id.to_string() },
-                update,
-                UpdateOptions::builder().upsert(true).build(),
-            )
-            .await?;
-        Ok(())
-    }
-
-    pub async fn update_data_upsert(&self, ctx: &Arc<Context>, update: Document) -> Result<()> {
-        ctx.get_mongodb()
-            .database("custos")
-            .collection::<GuildConfig>("guild_configs")
-            .update_one(
-                doc! { "_id": self.id.to_string() },
                 update,
                 UpdateOptions::builder().upsert(true).build(),
             )
@@ -183,9 +168,7 @@ impl AntiAbuseActionBuilder {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct WelcomerConfig {
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub channel_id: Option<Id<ChannelMarker>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
 }
 

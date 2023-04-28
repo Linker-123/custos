@@ -93,7 +93,7 @@ impl CustosCommand for WelcomerCommand {
                 None => return Err(Error::msg("No 'channel' option found.")),
             };
 
-            GuildConfig::update_data_by_id_upsert(
+            GuildConfig::set_welcomer_data(
                 context,
                 doc! { "$set": { "welcomer.channel_id": channel_id.to_string() } },
                 guild_id,
@@ -162,7 +162,7 @@ impl CustosCommand for WelcomerCommand {
                 None => return Err(Error::msg("No 'channel' option found.")),
             };
 
-            GuildConfig::update_data_by_id_upsert(
+            GuildConfig::set_welcomer_data(
                 context,
                 doc! { "$set": { "welcomer.message": message } },
                 inter.guild_id.unwrap(),

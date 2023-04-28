@@ -2,17 +2,15 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use bson::{doc, to_bson};
 use lazy_static::lazy_static;
 use tracing::error_span;
 use twilight_gateway::stream::ShardRef;
 use twilight_model::{
     application::{
         command::{CommandOptionChoice, CommandOptionChoiceValue, CommandType},
-        interaction::application_command::{CommandData, CommandDataOption, CommandOptionValue},
+        interaction::application_command::{CommandData, CommandOptionValue},
     },
     gateway::payload::incoming::InteractionCreate,
-    guild::audit_log::AuditLogEventType,
     http::interaction::{InteractionResponse, InteractionResponseType},
 };
 use twilight_util::builder::{
@@ -23,12 +21,7 @@ use twilight_util::builder::{
 };
 
 use super::CustosCommand;
-use crate::{
-    ctx::Context,
-    plugins::anti_abuse::schemas::AuditLogEntry,
-    schemas::{AntiAbuseActionBuilder, AntiAbuseEventConfig, GuildConfig},
-    util,
-};
+use crate::ctx::Context;
 
 lazy_static! {
     pub static ref ACTION_LABELS: Vec<(String, u16)> = vec![
@@ -125,7 +118,7 @@ impl CustosCommand for AntiAbuseCommand {
                             "max_sanctions",
                             "Set the maximum amount of sanctions (amount of times the action can be performed)."
                         )
-                            .min_value(0)
+                            .min_value(1)
                             .max_value(128)
                             .required(true)
                     )
@@ -155,72 +148,7 @@ impl CustosCommand for AntiAbuseCommand {
         inter: Box<InteractionCreate>,
         data: Box<CommandData>,
     ) -> Result<()> {
-        let guild_id = match inter.guild_id {
-            Some(g) => g,
-            None => return Ok(()),
-        };
-
-        let sub_command_group = &data.options[0];
-        if sub_command_group.name != "action" {
-            error_span!("Getting autcomplete for anti_abuse command that is not of sub command group type action.", shard = ?shard.id());
-            return Ok(());
-        }
-
-        let sub_command = match &sub_command_group.value {
-            CommandOptionValue::SubCommandGroup(d) => &d[0],
-            _ => unreachable!(),
-        };
-
-        if sub_command.name == "add" {
-            let options = match &sub_command.value {
-                CommandOptionValue::SubCommand(sub_cmd) => sub_cmd,
-                _ => unreachable!(),
-            };
-
-            let action_type = match &options[0].value {
-                CommandOptionValue::String(s) => s,
-                _ => unreachable!(),
-            }
-            .parse::<u16>()?;
-            let max_sanctions = match &options[1].value {
-                CommandOptionValue::Integer(s) => s,
-                _ => unreachable!(),
-            };
-            let sanction_cooldown = match &options[2].value {
-                CommandOptionValue::Integer(s) => s,
-                _ => unreachable!(),
-            };
-
-            let guild_config = GuildConfig::get_guild(context, guild_id).await?.unwrap();
-
-            guild_config
-                .update_data_upsert(
-                    context,
-                    doc! {
-                        "$push": {
-                            "antiAbuse.watchedActions": to_bson(&AntiAbuseEventConfig {
-                                action_type: AuditLogEventType::from(action_type),
-                                max_sanctions: *max_sanctions as i32,
-                                sanction_cooldown: *sanction_cooldown as i32,
-                                punishment: AntiAbuseActionBuilder::new().add_ban()
-                            })?
-                        }
-                    },
-                )
-                .await?;
-
-            let interactions = context.get_interactions();
-            util::send(
-                &interactions,
-                &inter,
-                InteractionResponseType::ChannelMessageWithSource,
-                InteractionResponseDataBuilder::new()
-                    .content("Added new rule!")
-                    .build(),
-            )
-            .await?;
-        }
-
+        println!("data: {:#?}", data);
         Ok(())
     }
 
