@@ -24,24 +24,22 @@ impl From<Box<MemberAdd>> for WelcomerMemberAdd {
 
 #[instrument]
 pub async fn on_member_add(context: &Arc<Context>, member_add: WelcomerMemberAdd) -> Result<()> {
-    // TODO: use let-else here.
-    let guild_config = match GuildConfig::get_guild(context, member_add.guild_id).await? {
-        Some(guildcfg) => guildcfg,
-        None => return Ok(()),
-    };
-
-    let guild = match context.get_cache().guild(member_add.guild_id) {
-        Some(g) => g,
-        None => {
-            error!("Tried to get guild by guild_id from cache and failed");
-            return Err(Error::msg("The guild is not in cache for some reason"));
-        }
-    };
-    let guild_name = guild.name().to_owned();
-
-    drop(guild);
+    let guild_config = GuildConfig::get_guild(context, member_add.guild_id)
+        .await?
+        .unwrap();
 
     if let Some(welcomer) = guild_config.welcomer {
+        let guild = match context.get_cache().guild(member_add.guild_id) {
+            Some(g) => g,
+            None => {
+                error!("Tried to get guild by guild_id from cache and failed");
+                return Err(Error::msg("The guild is not in cache for some reason"));
+            }
+        };
+        let guild_name = guild.name().to_owned();
+
+        drop(guild);
+
         if welcomer.channel_id.is_some() && welcomer.message.is_some() {
             let values = BTreeMap::from([
                 ("server_name".to_owned(), guild_name),

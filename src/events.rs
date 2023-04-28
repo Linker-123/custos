@@ -51,6 +51,9 @@ pub async fn process_event(
                 _ => todo!(),
             }
         }
+        Event::GuildAuditLogEntryCreate(log_entry) => {
+            plugins::anti_abuse::on_audit_log_create(context, Box::clone(log_entry)).await?;
+        }
         _ => (),
     }
 

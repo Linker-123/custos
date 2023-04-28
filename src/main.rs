@@ -32,7 +32,8 @@ async fn parallel_shards_init() -> Result<()> {
         Intents::GUILDS
             | Intents::GUILD_MESSAGES
             | Intents::GUILD_MEMBERS
-            | Intents::MESSAGE_CONTENT,
+            | Intents::MESSAGE_CONTENT
+            | Intents::GUILD_MODERATION,
     );
     let context = Arc::new(Context::new(&token).await?);
     context.register_commands().await?;
