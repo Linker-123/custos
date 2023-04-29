@@ -1,12 +1,13 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
-use anyhow::Result;
+use anyhow::{Error, Result};
 use async_trait::async_trait;
 use bson::{doc, to_bson};
 use lazy_static::lazy_static;
 use mongodb::options::FindOneOptions;
 use tracing::{error_span, warn_span};
 use twilight_gateway::stream::ShardRef;
+use twilight_http::client::InteractionClient;
 use twilight_model::{
     application::{
         command::{CommandOptionChoice, CommandOptionChoiceValue, CommandType},
@@ -139,6 +140,11 @@ lazy_static! {
     ];
 }
 
+fn action_label_code_to_str(code: u16) -> Option<String> {
+    let label = ACTION_LABELS.iter().find(|x| x.1 == code);
+    label.as_ref().map(|label| label.0.clone())
+}
+
 pub struct AntiAbuseCommand {}
 
 #[async_trait]
@@ -188,7 +194,8 @@ impl CustosCommand for AntiAbuseCommand {
                         StringBuilder::new("action_type", "Set the action type to watch for")
                             .autocomplete(true)
                             .required(true)
-                    )
+                    ),
+                SubCommandBuilder::new("list", "Lists all the watched/monitored actions.")
             ]),
         )
         .build()
@@ -363,6 +370,11 @@ impl CustosCommand for AntiAbuseCommand {
         inter: Box<InteractionCreate>,
         data: Box<CommandData>,
     ) -> Result<()> {
+        let guild_id = match inter.guild_id {
+            Some(g) => g,
+            None => return Err(Error::msg("No guild_id in the interaction data")),
+        };
+
         let sub_command_group = &data.options[0];
         if sub_command_group.name != "action" {
             error_span!("Getting autcomplete for anti_abuse command that is not of sub command group type action.", shard = ?shard.id());
@@ -400,7 +412,7 @@ impl CustosCommand for AntiAbuseCommand {
                 &inter,
                 InteractionResponseType::ChannelMessageWithSource,
                 InteractionResponseDataBuilder::new()
-                    .content("Added new rule!")
+                    .content("Please select a punishment for that action")
                     .components([Component::ActionRow(ActionRow {
                         components: vec![Component::SelectMenu(SelectMenu {
                             custom_id: format!(
@@ -418,6 +430,120 @@ impl CustosCommand for AntiAbuseCommand {
                     .build(),
             )
             .await?;
+        } else if sub_command.name == "remove" {
+            let options = match &sub_command.value {
+                CommandOptionValue::SubCommand(sub_cmd) => sub_cmd,
+                _ => unreachable!(),
+            };
+
+            let action_type = match &options[0].value {
+                CommandOptionValue::String(s) => s,
+                _ => unreachable!(),
+            }
+            .parse::<u16>()?;
+
+            let label = action_label_code_to_str(action_type).unwrap();
+            let interactions = context.get_interactions();
+
+            let guild_configs = context
+                .get_mongodb()
+                .database("custos")
+                .collection::<GuildConfig>("guild_configs");
+            guild_configs
+                .update_one(
+                    doc! { "_id": to_bson(&guild_id)? },
+                    doc! {
+                        "$pull": {
+                            "anti_abuse.watched_actions": {
+                                "action_type": action_type as i32
+                            }
+                        }
+                    },
+                    None,
+                )
+                .await?;
+
+            util::send(
+                &interactions,
+                &inter,
+                InteractionResponseType::ChannelMessageWithSource,
+                InteractionResponseDataBuilder::new()
+                    .content(format!(
+                        "I will no longer watch/monitor the `{}` action.",
+                        label
+                    ))
+                    .build(),
+            )
+            .await?
+        } else if sub_command.name == "list" {
+            let guild_config = GuildConfig::get_guild(
+                context,
+                guild_id,
+                Some(
+                    FindOneOptions::builder()
+                        .projection(doc! { "anti_abuse": 1 })
+                        .build(),
+                ),
+            )
+            .await?
+            .unwrap();
+
+            async fn err_no_configured_actions(
+                interactions: InteractionClient<'_>,
+                inter: Box<InteractionCreate>,
+            ) -> Result<()> {
+                util::send(
+                    &interactions,
+                    &inter,
+                    InteractionResponseType::ChannelMessageWithSource,
+                    InteractionResponseDataBuilder::new()
+                        // TODO: add mention of the command which is used to add those actions to watchlist
+                        .content("You do not have any actions watched/monitored.")
+                        .build(),
+                )
+                .await?;
+
+                Ok(())
+            }
+
+            let interactions = context.get_interactions();
+            let anti_abuse = match guild_config.anti_abuse {
+                Some(anti_abuse) => {
+                    if anti_abuse.watched_actions.is_empty() {
+                        return err_no_configured_actions(interactions, inter).await;
+                    }
+                    anti_abuse
+                }
+                None => {
+                    return err_no_configured_actions(interactions, inter).await;
+                }
+            };
+
+            let list: String = anti_abuse
+                .watched_actions
+                .into_iter()
+                .map(|action| {
+                    let action_code = std::convert::Into::<u16>::into(action.action_type);
+                    let label = action_label_code_to_str(action_code)
+                        .unwrap_or(format!("Unknown Label code: {}", action_code));
+
+                    format!(
+                        "`{}` - max sanctions: **{}** - cooldown: **{:.2?}**",
+                        label,
+                        action.max_sanctions,
+                        Duration::from_secs(action.sanction_cooldown as u64)
+                    )
+                })
+                .collect::<Vec<String>>()
+                .join("\n");
+
+            util::send(
+                &interactions,
+                &inter,
+                InteractionResponseType::ChannelMessageWithSource,
+                InteractionResponseDataBuilder::new().content(list).build(),
+            )
+            .await?;
         }
 
         Ok(())
@@ -429,6 +555,11 @@ impl CustosCommand for AntiAbuseCommand {
         inter: Box<InteractionCreate>,
         data: Box<CommandData>,
     ) -> Result<()> {
+        let guild_id = match inter.guild_id {
+            Some(g) => g,
+            None => return Err(Error::msg("No guild_id in the interaction data")),
+        };
+
         let sub_command_group = &data.options[0];
         if sub_command_group.name != "action" {
             error_span!("Getting autcomplete for anti_abuse command that is not of sub command group type action.", shard = ?shard.id());
@@ -452,7 +583,45 @@ impl CustosCommand for AntiAbuseCommand {
         };
 
         let query = actual_value.0.to_lowercase();
-        let matching_labels = if query.is_empty() {
+        let matching_labels = if sub_command.name == "remove" {
+            let guild_config = GuildConfig::get_guild(
+                context,
+                guild_id,
+                Some(
+                    FindOneOptions::builder()
+                        .projection(doc! { "anti_abuse": 1 })
+                        .build(),
+                ),
+            )
+            .await?
+            .unwrap();
+
+            if let Some(anti_abuse) = guild_config.anti_abuse {
+                if !anti_abuse.watched_actions.is_empty() {
+                    let watched_actions = anti_abuse
+                        .watched_actions
+                        .into_iter()
+                        .map(|x| x.action_type)
+                        .collect::<Vec<AuditLogEventType>>();
+
+                    let available_labels = ACTION_LABELS
+                        .iter()
+                        .filter(|(_, code)| {
+                            watched_actions.contains(&AuditLogEventType::from(*code))
+                        })
+                        .take(25)
+                        .collect::<Vec<&(String, u16)>>();
+                    available_labels
+                } else {
+                    vec![]
+                }
+            } else {
+                ACTION_LABELS
+                    .iter()
+                    .take(25)
+                    .collect::<Vec<&(String, u16)>>()
+            }
+        } else if query.is_empty() {
             ACTION_LABELS
                 .iter()
                 .take(25)
@@ -460,12 +629,11 @@ impl CustosCommand for AntiAbuseCommand {
         } else {
             ACTION_LABELS
                 .iter()
-                .filter(|(label, _)| label.starts_with(&query))
+                .filter(|(label, _)| label.contains(&query))
                 .collect::<Vec<&(String, u16)>>()
         };
 
         let interactions = context.get_interactions();
-
         interactions
             .create_response(
                 inter.id,

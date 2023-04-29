@@ -63,7 +63,7 @@ impl Context {
         interactions_client.set_global_commands(&[]).await?;
         interactions_client
             .set_guild_commands(
-                Id::new(1099391006069243976),
+                Id::new(795393018764591134),
                 &[
                     PingCommand::get_command_info(),
                     WelcomerCommand::get_command_info(),

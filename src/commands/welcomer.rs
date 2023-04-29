@@ -13,6 +13,7 @@ use twilight_model::{
     },
     channel::ChannelType,
     gateway::payload::incoming::InteractionCreate,
+    guild::Permissions,
     http::interaction::InteractionResponseType,
 };
 use twilight_util::builder::{
@@ -60,6 +61,7 @@ impl CustosCommand for WelcomerCommand {
                     .required(true),
             ),
         )
+        .default_member_permissions(Permissions::MANAGE_GUILD)
         .build()
     }
 
