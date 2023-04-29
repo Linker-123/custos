@@ -97,7 +97,7 @@ impl VirtualMachine {
                     let rhs = match b {
                         Constant::Number(number) => {
                             if number == 0.0 {
-                                self.error(&format!("cannot divide a number by zero",))
+                                self.error("cannot divide a number by zero")
                             }
                             number
                         }
