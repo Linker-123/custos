@@ -9,7 +9,7 @@ use mongodb::{
 };
 use twilight_cache_inmemory::InMemoryCache;
 use twilight_http::{client::InteractionClient, Client as HttpClient};
-use twilight_model::{id::Id, oauth::Application};
+use twilight_model::oauth::Application;
 
 use crate::{
     commands::{
@@ -102,18 +102,17 @@ impl Context {
     }
 
     pub async fn register_commands(&self) -> Result<()> {
-        let interactions_client = self.http.interaction(self.get_app().id);
-        interactions_client.set_global_commands(&[]).await?;
-        interactions_client
-            .set_guild_commands(
-                Id::new(795393018764591134),
-                &[
+        if self.get_config().get_bool("register_global_commands")? {
+            let interactions_client = self.http.interaction(self.get_app().id);
+            interactions_client.set_global_commands(&[]).await?;
+            interactions_client
+                .set_global_commands(&[
                     PingCommand::get_command_info(),
                     WelcomerCommand::get_command_info(),
                     AntiAbuseCommand::get_command_info(),
-                ],
-            )
-            .await?;
+                ])
+                .await?;
+        }
 
         Ok(())
     }

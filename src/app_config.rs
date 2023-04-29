@@ -6,7 +6,9 @@ pub fn read_config() -> Result<Config> {
     let mut config = Config::builder()
         .add_source(config::File::with_name("config.toml").required(false))
         .set_default("db_name", "custos")?
-        .set_default("mongodb_address", "mongodb://127.0.0.1:27017/")?;
+        .set_default("mongodb_address", "mongodb://127.0.0.1:27017/")?
+        .set_default("register_global_commands", false)?
+        .set_default("register_indexes", false)?;
 
     let matches = Command::new("hayat_online")
         .version("0.1")
