@@ -1,12 +1,21 @@
+use std::time::Duration;
+
 use anyhow::Result;
 use config::Config;
-use mongodb::{options::ClientOptions, Client as MongoClient};
+use mongodb::{
+    bson::doc,
+    options::{ClientOptions, IndexOptions},
+    Client as MongoClient, IndexModel,
+};
 use twilight_cache_inmemory::InMemoryCache;
 use twilight_http::{client::InteractionClient, Client as HttpClient};
 use twilight_model::{id::Id, oauth::Application};
 
-use crate::commands::{
-    anti_abuse::AntiAbuseCommand, debug::PingCommand, welcomer::WelcomerCommand, CustosCommand,
+use crate::{
+    commands::{
+        anti_abuse::AntiAbuseCommand, debug::PingCommand, welcomer::WelcomerCommand, CustosCommand,
+    },
+    plugins::anti_abuse::schemas::AuditLogEntry,
 };
 
 #[derive(Debug)]
@@ -26,13 +35,40 @@ impl Context {
         let options = ClientOptions::parse_async(config.get_string("mongodb_address")?).await?;
         let mongodb = MongoClient::with_options(options)?;
 
-        Ok(Context {
+        let context = Context {
             cache: InMemoryCache::new(),
             http,
             app,
             mongodb,
             config,
-        })
+        };
+
+        context.register_indexes().await?;
+
+        Ok(context)
+    }
+
+    pub async fn register_indexes(&self) -> Result<()> {
+        let audit_log_entries = self
+            .get_mongodb()
+            .database(&self.get_config().get_string("db_name")?)
+            .collection::<AuditLogEntry>("audit_log_entries");
+
+        audit_log_entries
+            .create_index(
+                IndexModel::builder()
+                    .keys(doc! { "expires_at": 1 })
+                    .options(
+                        IndexOptions::builder()
+                            .expire_after(Duration::from_secs(0))
+                            .build(),
+                    )
+                    .build(),
+                None,
+            )
+            .await?;
+
+        Ok(())
     }
 
     #[inline]
