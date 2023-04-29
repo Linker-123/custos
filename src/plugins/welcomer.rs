@@ -1,6 +1,8 @@
 use crate::tags;
 use crate::{ctx::Context, schemas::GuildConfig};
 use anyhow::{Error, Result};
+use bson::doc;
+use mongodb::options::FindOneOptions;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use tracing::{error, instrument};
@@ -24,9 +26,17 @@ impl From<Box<MemberAdd>> for WelcomerMemberAdd {
 
 #[instrument]
 pub async fn on_member_add(context: &Arc<Context>, member_add: WelcomerMemberAdd) -> Result<()> {
-    let guild_config = GuildConfig::get_guild(context, member_add.guild_id)
-        .await?
-        .unwrap();
+    let guild_config = GuildConfig::get_guild(
+        context,
+        member_add.guild_id,
+        Some(
+            FindOneOptions::builder()
+                .projection(doc! { "welcomer": 1 })
+                .build(),
+        ),
+    )
+    .await?
+    .unwrap();
 
     if let Some(welcomer) = guild_config.welcomer {
         let guild = match context.get_cache().guild(member_add.guild_id) {

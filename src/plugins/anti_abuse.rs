@@ -1,4 +1,6 @@
-use anyhow::Result;
+use anyhow::{Error, Result};
+use bson::doc;
+use mongodb::options::FindOneOptions;
 use std::sync::Arc;
 use tracing::{debug, instrument, trace};
 use twilight_http::request::AuditLogReason;
@@ -26,7 +28,27 @@ pub async fn on_audit_log_create(
 ) -> Result<()> {
     debug!("Received audit log entry {log:#?}", log = log_entry);
     let guild_id = log_entry.guild_id.unwrap(); // we unwrap because it's definitely present in this event.
-    let guild_config = GuildConfig::get_guild(context, guild_id).await?.unwrap();
+
+    let moderator_id = match log_entry.user_id {
+        Some(g) => g,
+        None => return Err(Error::msg("No user_id field present.")),
+    };
+
+    if moderator_id.get() == context.get_app().id.get() {
+        return Ok(());
+    }
+
+    let guild_config = GuildConfig::get_guild(
+        context,
+        guild_id,
+        Some(
+            FindOneOptions::builder()
+                .projection(doc! { "anti_abuse": 1 })
+                .build(),
+        ),
+    )
+    .await?
+    .unwrap();
 
     // TODO: use let-else
     let anti_abuse = match guild_config.anti_abuse {
@@ -53,8 +75,6 @@ pub async fn on_audit_log_create(
     let log_entry_count = audit_log_entry
         .count_entries_for(context, action_log.action_type)
         .await?;
-
-    debug!("log_entry_count: {log_entry_count:#?}");
 
     if log_entry_count > action_log.max_sanctions.try_into()? {
         if action_log.punishment.is_ban() {

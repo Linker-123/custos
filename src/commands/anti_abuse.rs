@@ -4,22 +4,34 @@ use anyhow::Result;
 use async_trait::async_trait;
 use bson::{doc, to_bson};
 use lazy_static::lazy_static;
-use tracing::error_span;
+use mongodb::options::FindOneOptions;
+use tracing::{error_span, warn_span};
 use twilight_gateway::stream::ShardRef;
 use twilight_model::{
     application::{
         command::{CommandOptionChoice, CommandOptionChoiceValue, CommandType},
-        interaction::application_command::{CommandData, CommandOptionValue},
+        interaction::{
+            application_command::{CommandData, CommandOptionValue},
+            message_component::MessageComponentInteractionData,
+        },
+    },
+    channel::message::{
+        component::{ActionRow, SelectMenu, SelectMenuOption},
+        Component,
     },
     gateway::payload::incoming::InteractionCreate,
-    guild::audit_log::AuditLogEventType,
+    guild::{audit_log::AuditLogEventType, Permissions},
     http::interaction::{InteractionResponse, InteractionResponseType},
 };
-use twilight_util::builder::{
-    command::{
-        CommandBuilder, IntegerBuilder, StringBuilder, SubCommandBuilder, SubCommandGroupBuilder,
+use twilight_util::{
+    builder::{
+        command::{
+            CommandBuilder, IntegerBuilder, StringBuilder, SubCommandBuilder,
+            SubCommandGroupBuilder,
+        },
+        InteractionResponseDataBuilder,
     },
-    InteractionResponseDataBuilder,
+    permission_calculator::PermissionCalculator,
 };
 
 use super::CustosCommand;
@@ -95,6 +107,36 @@ lazy_static! {
         (name.to_lowercase(), code)
     })
     .collect::<Vec<(String, u16)>>();
+    pub static ref ACTION_MENU_OPTIONS: Vec<SelectMenuOption> = vec![
+        SelectMenuOption {
+            default: true,
+            description: Some("Remove all powerful roles of the user.".to_owned(),),
+            emoji: None,
+            label: "Demote".to_owned(),
+            value: String::from("action-demote"),
+        },
+        SelectMenuOption {
+            default: false,
+            description: Some("Timeout the user.".to_owned()),
+            emoji: None,
+            label: "Timeout".to_owned(),
+            value: String::from("action-timeout"),
+        },
+        SelectMenuOption {
+            default: false,
+            description: Some("Kick the user.".to_owned()),
+            emoji: None,
+            label: "Kick".to_owned(),
+            value: String::from("action-kick"),
+        },
+        SelectMenuOption {
+            default: false,
+            description: Some("Ban the user.".to_owned()),
+            emoji: None,
+            label: "Ban".to_owned(),
+            value: String::from("action-ban"),
+        },
+    ];
 }
 
 pub struct AntiAbuseCommand {}
@@ -105,12 +147,16 @@ impl CustosCommand for AntiAbuseCommand {
         "anti-abuse".to_owned()
     }
 
+    fn get_component_tag() -> &'static str {
+        "ab"
+    }
+
     fn get_command_info() -> twilight_model::application::command::Command {
         CommandBuilder::new(
             Self::get_command_name(),
             "Configure anti-abuse plugin.",
             CommandType::ChatInput,
-        )
+        ).default_member_permissions(Permissions::MANAGE_GUILD)
         .option(
             SubCommandGroupBuilder::new("action", "Manage the watched actions.").subcommands([
                 SubCommandBuilder::new("add", "Add a watched action.")
@@ -133,9 +179,9 @@ impl CustosCommand for AntiAbuseCommand {
                             "sanction_cooldown",
                             "The time frame between which the sanctions will be recorded, after the timeframe the sanctions reset"
                         )
-                        .min_value(60)
-                        .max_value(3600)
-                        .required(true)
+                            .min_value(60)
+                            .max_value(3600)
+                            .required(true)
                     ),
                 SubCommandBuilder::new("remove", "Remove a watched action.")
                     .option(
@@ -148,17 +194,175 @@ impl CustosCommand for AntiAbuseCommand {
         .build()
     }
 
+    async fn on_component_event(
+        _shard: ShardRef<'_>,
+        context: &Arc<Context>,
+        inter: Box<InteractionCreate>,
+        component_data: MessageComponentInteractionData,
+    ) -> Result<()> {
+        let member = match &inter.member {
+            Some(m) => m,
+            None => return Ok(()),
+        };
+
+        let guild_id = inter.guild_id.unwrap();
+        let user_id = match &member.user {
+            Some(user) => user.id,
+            None => return Ok(()),
+        };
+
+        // Guild-level @everyone role that, by default, allows everyone to view
+        // channels.
+        let everyone_role = Permissions::VIEW_CHANNEL;
+
+        let mut member_roles = Vec::with_capacity(member.roles.len());
+        for role_id in &member.roles {
+            let role = context.get_cache().role(*role_id);
+            if let Some(role) = role {
+                member_roles.push((*role_id, role.permissions));
+            }
+        }
+
+        let member_roles = member_roles.as_slice();
+
+        let calculator = PermissionCalculator::new(guild_id, user_id, everyone_role, member_roles);
+        let calculated_permissions = calculator.root();
+        let interactions = context.get_interactions();
+
+        let guild = match context.get_cache().guild(guild_id) {
+            Some(g) => g,
+            None => {
+                warn_span!("Got an interaction but no guild in the cache.");
+                return Ok(());
+            }
+        };
+
+        let owner_id = guild.owner_id();
+        drop(guild);
+
+        if !calculated_permissions.contains(Permissions::MANAGE_GUILD) && user_id != owner_id {
+            util::send(
+                &interactions,
+                &inter,
+                InteractionResponseType::UpdateMessage,
+                InteractionResponseDataBuilder::new()
+                    .content(
+                        "You do not have `Manage Server` permissions to configure this plugin.",
+                    )
+                    .components([Component::ActionRow(ActionRow {
+                        components: vec![Component::SelectMenu(SelectMenu {
+                            custom_id: component_data.custom_id,
+                            disabled: true,
+                            max_values: Some(2),
+                            min_values: Some(1),
+                            options: ACTION_MENU_OPTIONS.clone(),
+                            placeholder: Some("Select a punishment".to_owned()),
+                        })],
+                    })])
+                    .build(),
+            )
+            .await?;
+            return Ok(());
+        }
+
+        if component_data.custom_id.starts_with("ab-a") {
+            let data_values = component_data
+                .custom_id
+                .strip_prefix("ab-a")
+                .unwrap()
+                .split('-')
+                .skip(1)
+                .map(|v| v.parse::<i32>().unwrap_or(-1))
+                .collect::<Vec<i32>>();
+            let action_type = &data_values[0];
+            let max_sanctions = &data_values[1];
+            let sanction_cooldown = &data_values[2];
+
+            let guild_config = GuildConfig::get_guild(
+                context,
+                guild_id,
+                Some(
+                    FindOneOptions::builder()
+                        .projection(doc! { "anti_abuse": 1 })
+                        .build(),
+                ),
+            )
+            .await?
+            .unwrap();
+
+            let mut existing_index = None;
+            let action_type = AuditLogEventType::from(*action_type as u16);
+
+            if let Some(anti_abuse) = &guild_config.anti_abuse {
+                existing_index = anti_abuse
+                    .watched_actions
+                    .iter()
+                    .position(|action| action.action_type == action_type);
+            }
+
+            if let Some(index) = existing_index {
+                guild_config
+                    .update_data_upsert(
+                        context,
+                        doc! {
+                            "$set": {
+                                {format!("anti_abuse.watched_actions.{index}")}: to_bson(&AntiAbuseEventConfig {
+                                    action_type,
+                                    max_sanctions: *max_sanctions,
+                                    sanction_cooldown: *sanction_cooldown,
+                                    punishment: AntiAbuseActionBuilder::new().add_ban()
+                                })?
+                            }
+                        },
+                    )
+                    .await?;
+            } else {
+                guild_config
+                    .update_data_upsert(
+                        context,
+                        doc! {
+                            "$push": {
+                                "anti_abuse.watched_actions": to_bson(&AntiAbuseEventConfig {
+                                    action_type,
+                                    max_sanctions: *max_sanctions,
+                                    sanction_cooldown: *sanction_cooldown,
+                                    punishment: AntiAbuseActionBuilder::new().add_ban()
+                                })?
+                            }
+                        },
+                    )
+                    .await?;
+            }
+
+            util::send(
+                &interactions,
+                &inter,
+                InteractionResponseType::UpdateMessage,
+                InteractionResponseDataBuilder::new()
+                    .content("Added a new action to watch for!")
+                    .components([Component::ActionRow(ActionRow {
+                        components: vec![Component::SelectMenu(SelectMenu {
+                            custom_id: component_data.custom_id,
+                            disabled: true,
+                            max_values: Some(2),
+                            min_values: Some(1),
+                            options: ACTION_MENU_OPTIONS.clone(),
+                            placeholder: Some("Select a punishment".to_owned()),
+                        })],
+                    })])
+                    .build(),
+            )
+            .await?;
+        }
+        Ok(())
+    }
+
     async fn on_command_call(
         shard: ShardRef<'_>,
         context: &Arc<Context>,
         inter: Box<InteractionCreate>,
         data: Box<CommandData>,
     ) -> Result<()> {
-        let guild_id = match inter.guild_id {
-            Some(g) => g,
-            None => return Ok(()),
-        };
-
         let sub_command_group = &data.options[0];
         if sub_command_group.name != "action" {
             error_span!("Getting autcomplete for anti_abuse command that is not of sub command group type action.", shard = ?shard.id());
@@ -190,24 +394,6 @@ impl CustosCommand for AntiAbuseCommand {
                 _ => unreachable!(),
             };
 
-            let guild_config = GuildConfig::get_guild(context, guild_id).await?.unwrap();
-
-            guild_config
-                .update_data_upsert(
-                    context,
-                    doc! {
-                        "$push": {
-                            "anti_abuse.watched_actions": to_bson(&AntiAbuseEventConfig {
-                                action_type: AuditLogEventType::from(action_type),
-                                max_sanctions: *max_sanctions as i32,
-                                sanction_cooldown: *sanction_cooldown as i32,
-                                punishment: AntiAbuseActionBuilder::new().add_ban()
-                            })?
-                        }
-                    },
-                )
-                .await?;
-
             let interactions = context.get_interactions();
             util::send(
                 &interactions,
@@ -215,6 +401,20 @@ impl CustosCommand for AntiAbuseCommand {
                 InteractionResponseType::ChannelMessageWithSource,
                 InteractionResponseDataBuilder::new()
                     .content("Added new rule!")
+                    .components([Component::ActionRow(ActionRow {
+                        components: vec![Component::SelectMenu(SelectMenu {
+                            custom_id: format!(
+                                // Anti-abuse - add - action_type - max_sanctions - sanction_cooldown
+                                "ab-a-{}-{}-{}",
+                                action_type, max_sanctions, sanction_cooldown
+                            ),
+                            disabled: false,
+                            max_values: Some(2),
+                            min_values: Some(1),
+                            options: ACTION_MENU_OPTIONS.clone(),
+                            placeholder: Some("Select a punishment".to_owned()),
+                        })],
+                    })])
                     .build(),
             )
             .await?;

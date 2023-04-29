@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use mongodb::{
     bson::{doc, Document},
-    options::UpdateOptions,
+    options::{FindOneOptions, UpdateOptions},
 };
 use serde::{Deserialize, Serialize};
 use twilight_model::{
@@ -34,13 +34,14 @@ impl GuildConfig {
     pub async fn get_guild(
         ctx: &Arc<Context>,
         guild_id: Id<GuildMarker>,
+        options: Option<FindOneOptions>,
     ) -> Result<Option<GuildConfig>> {
         let configs = ctx
             .get_mongodb()
             .database("custos")
             .collection::<GuildConfig>("guild_configs");
         let guild_cfg = configs
-            .find_one(doc! { "_id": guild_id.to_string() }, None)
+            .find_one(doc! { "_id": guild_id.to_string() }, options)
             .await?;
         let config = GuildConfig {
             id: guild_id,

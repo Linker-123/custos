@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::{Error, Result};
 use async_trait::async_trait;
-use mongodb::bson::doc;
+use mongodb::{bson::doc, options::FindOneOptions};
 use tracing::error_span;
 use twilight_gateway::stream::ShardRef;
 use twilight_http::client::InteractionClient;
@@ -110,7 +110,17 @@ impl CustosCommand for WelcomerCommand {
             )
             .await?;
         } else if sub_command.name == "set-message" {
-            let guild_config = match GuildConfig::get_guild(context, guild_id).await? {
+            let guild_config = match GuildConfig::get_guild(
+                context,
+                guild_id,
+                Some(
+                    FindOneOptions::builder()
+                        .projection(doc! { "welcomer": 1 })
+                        .build(),
+                ),
+            )
+            .await?
+            {
                 Some(g) => g,
                 None => {
                     error_span!(

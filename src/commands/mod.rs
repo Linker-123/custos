@@ -26,6 +26,10 @@ pub trait CustosCommand {
 
     fn get_command_info() -> Command;
 
+    fn get_component_tag() -> &'static str {
+        ""
+    }
+
     async fn on_command_call(
         _shard: ShardRef<'_>,
         _context: &Arc<Context>,
@@ -51,6 +55,15 @@ pub trait CustosCommand {
     }
 
     async fn on_modal_submit(_modal_data: ModalInteractionData) -> Result<()> {
+        Ok(())
+    }
+
+    async fn on_component_event(
+        _shard: ShardRef<'_>,
+        _context: &Arc<Context>,
+        _inter: Box<InteractionCreate>,
+        _component_data: MessageComponentInteractionData,
+    ) -> Result<()> {
         Ok(())
     }
 }

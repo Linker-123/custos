@@ -42,12 +42,7 @@ pub async fn process_event(
             match data {
                 InteractionData::ApplicationCommand(command_data) => {
                     if command_data.name == PingCommand::get_command_name() {
-                        // if inter.kind == InteractionType::ApplicationCommandAutocomplete {
-                        //     PingCommand::on_autocomplete_call(shard, context, inter, command_data)
-                        //         .await?;
-                        // } else {
                         PingCommand::on_command_call(shard, context, inter, command_data).await?;
-                        // }
                     } else if command_data.name == WelcomerCommand::get_command_name() {
                         WelcomerCommand::on_command_call(shard, context, inter, command_data)
                             .await?;
@@ -66,7 +61,15 @@ pub async fn process_event(
                         }
                     }
                 }
-                InteractionData::MessageComponent(_msg_comp) => {}
+                InteractionData::MessageComponent(msg_comp) => {
+                    if msg_comp
+                        .custom_id
+                        .starts_with(AntiAbuseCommand::get_component_tag())
+                    {
+                        AntiAbuseCommand::on_component_event(shard, context, inter, msg_comp)
+                            .await?;
+                    }
+                }
                 InteractionData::ModalSubmit(_modal) => {}
                 _ => todo!(),
             }
