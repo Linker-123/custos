@@ -162,7 +162,7 @@ pub async fn demote_abuser(
         Permissions::MANAGE_NICKNAMES,
         Permissions::MANAGE_ROLES,
         Permissions::MANAGE_WEBHOOKS,
-        Permissions::MANAGE_EMOJIS_AND_STICKERS,
+        Permissions::MANAGE_GUILD_EXPRESSIONS,
         Permissions::MANAGE_EVENTS,
         Permissions::MANAGE_THREADS,
         Permissions::MODERATE_MEMBERS,
