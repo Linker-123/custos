@@ -1,4 +1,5 @@
 use anyhow::Result;
+use config::Config;
 use mongodb::{options::ClientOptions, Client as MongoClient};
 use twilight_cache_inmemory::InMemoryCache;
 use twilight_http::{client::InteractionClient, Client as HttpClient};
@@ -10,19 +11,19 @@ use crate::commands::{
 
 #[derive(Debug)]
 pub struct Context {
-    cache: InMemoryCache,
-    http: HttpClient,
-    app: Application,
-    mongodb: MongoClient,
+    pub cache: InMemoryCache,
+    pub http: HttpClient,
+    pub app: Application,
+    pub mongodb: MongoClient,
+    pub config: Config,
 }
 
 impl Context {
-    pub async fn new(token: &str) -> Result<Self> {
-        let http = HttpClient::new(token.to_owned());
+    pub async fn new(config: Config) -> Result<Self> {
+        let http = HttpClient::new(config.get_string("token")?);
         let app = http.current_user_application().await?.model().await?;
 
-        let options =
-            ClientOptions::parse_async("mongodb://localhost:27017/?replicaSet=serverRepl").await?;
+        let options = ClientOptions::parse_async(config.get_string("mongodb_address")?).await?;
         let mongodb = MongoClient::with_options(options)?;
 
         Ok(Context {
@@ -30,7 +31,13 @@ impl Context {
             http,
             app,
             mongodb,
+            config,
         })
+    }
+
+    #[inline]
+    pub fn get_config(&self) -> &Config {
+        &self.config
     }
 
     #[inline]

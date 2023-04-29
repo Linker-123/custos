@@ -38,7 +38,7 @@ impl GuildConfig {
     ) -> Result<Option<GuildConfig>> {
         let configs = ctx
             .get_mongodb()
-            .database("custos")
+            .database(&ctx.get_config().get_string("db_name")?)
             .collection::<GuildConfig>("guild_configs");
         let guild_cfg = configs
             .find_one(doc! { "_id": guild_id.to_string() }, options)
@@ -63,7 +63,7 @@ impl GuildConfig {
         guild_id: Id<GuildMarker>,
     ) -> Result<()> {
         ctx.get_mongodb()
-            .database("custos")
+            .database(&ctx.get_config().get_string("db_name")?)
             .collection::<GuildConfig>("guild_configs")
             .update_one(
                 doc! { "_id": guild_id.to_string() },
@@ -76,7 +76,7 @@ impl GuildConfig {
 
     pub async fn update_data_upsert(&self, ctx: &Arc<Context>, update: Document) -> Result<()> {
         ctx.get_mongodb()
-            .database("custos")
+            .database(&ctx.get_config().get_string("db_name")?)
             .collection::<GuildConfig>("guild_configs")
             .update_one(
                 doc! { "_id": self.id.to_string() },

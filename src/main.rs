@@ -1,33 +1,37 @@
 use anyhow::Result;
+use config::Config;
 use futures_util::{future::join_all, StreamExt};
-use std::{env, iter, sync::Arc, thread};
+use std::{iter, sync::Arc, thread};
 use tokio::{signal, sync::watch, task::JoinSet};
 use twilight_gateway::{
     stream::{self, ShardEventStream},
-    CloseFrame, Config, Intents, Shard,
+    CloseFrame, Config as TwilightConfig, Intents, Shard,
 };
 
 use crate::ctx::Context;
 
+mod app_config;
 mod commands;
 mod ctx;
 mod events;
 mod plugins;
 mod schemas;
-mod util;
 mod tags;
+mod util;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    parallel_shards_init().await?;
+    let cfg = app_config::read_config()?;
+
+    parallel_shards_init(cfg).await?;
     Ok(())
 }
 
-async fn parallel_shards_init() -> Result<()> {
+async fn parallel_shards_init(app_config: Config) -> Result<()> {
     tracing_subscriber::fmt::init();
 
-    let token = env::var("DISCORD_TOKEN")?;
-    let config = Config::new(
+    let token = app_config.get_string("token")?;
+    let config = TwilightConfig::new(
         token.clone(),
         Intents::GUILDS
             | Intents::GUILD_MESSAGES
@@ -35,7 +39,7 @@ async fn parallel_shards_init() -> Result<()> {
             | Intents::MESSAGE_CONTENT
             | Intents::GUILD_MODERATION,
     );
-    let context = Arc::new(Context::new(&token).await?);
+    let context = Arc::new(Context::new(app_config).await?);
     context.register_commands().await?;
 
     let tasks = thread::available_parallelism()?.get();

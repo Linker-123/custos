@@ -235,7 +235,7 @@ pub mod schemas {
         pub async fn insert(&self, context: &Arc<Context>) -> Result<InsertOneResult> {
             let audit_log_entries = context
                 .get_mongodb()
-                .database("custos")
+                .database(&context.get_config().get_string("db_name")?)
                 .collection::<AuditLogEntry>("audit_log_entries");
 
             Ok(audit_log_entries.insert_one(self, None).await?)
@@ -248,7 +248,7 @@ pub mod schemas {
         ) -> Result<u64> {
             let audit_log_entries = context
                 .get_mongodb()
-                .database("custos")
+                .database(&context.get_config().get_string("db_name")?)
                 .collection::<AuditLogEntry>("audit_log_entries");
 
             let count = audit_log_entries

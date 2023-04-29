@@ -447,7 +447,7 @@ impl CustosCommand for AntiAbuseCommand {
 
             let guild_configs = context
                 .get_mongodb()
-                .database("custos")
+                .database(&context.get_config().get_string("db_name")?)
                 .collection::<GuildConfig>("guild_configs");
             guild_configs
                 .update_one(
