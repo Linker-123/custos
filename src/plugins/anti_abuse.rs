@@ -1,6 +1,6 @@
 use anyhow::Result;
 use std::sync::Arc;
-use tracing::{instrument, trace};
+use tracing::{debug, instrument, trace};
 use twilight_http::request::AuditLogReason;
 use twilight_model::{
     gateway::payload::incoming::GuildAuditLogEntryCreate,
@@ -24,6 +24,7 @@ pub async fn on_audit_log_create(
     context: &Arc<Context>,
     log_entry: Box<GuildAuditLogEntryCreate>,
 ) -> Result<()> {
+    debug!("Received audit log entry {log:#?}", log = log_entry);
     let guild_id = log_entry.guild_id.unwrap(); // we unwrap because it's definitely present in this event.
     let guild_config = GuildConfig::get_guild(context, guild_id).await?.unwrap();
 
@@ -38,6 +39,8 @@ pub async fn on_audit_log_create(
         .iter()
         .find(|event| event.action_type == log_entry.action_type);
 
+    debug!("action log: {action_log:#?}");
+
     let action_log = match action_log {
         Some(action_config) => action_config,
         None => return Ok(()),
@@ -50,6 +53,8 @@ pub async fn on_audit_log_create(
     let log_entry_count = audit_log_entry
         .count_entries_for(context, action_log.action_type)
         .await?;
+
+    debug!("log_entry_count: {log_entry_count:#?}");
 
     if log_entry_count > action_log.max_sanctions.try_into()? {
         if action_log.punishment.is_ban() {
@@ -191,7 +196,6 @@ pub mod schemas {
     use crate::ctx::Context;
 
     #[derive(Serialize, Deserialize, Clone, Debug)]
-    #[serde(rename_all = "camelCase")]
     pub struct AuditLogEntry {
         pub guild_id: Id<GuildMarker>,
         pub moderator_id: Id<UserMarker>,
@@ -201,7 +205,6 @@ pub mod schemas {
     }
 
     #[derive(Serialize, Deserialize, Clone, Debug)]
-    #[serde(rename_all = "camelCase")]
     pub struct ActionEntry {
         pub kind: AuditLogEventType,
         pub reason: Option<String>,

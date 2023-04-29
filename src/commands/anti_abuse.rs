@@ -197,7 +197,7 @@ impl CustosCommand for AntiAbuseCommand {
                     context,
                     doc! {
                         "$push": {
-                            "antiAbuse.watchedActions": to_bson(&AntiAbuseEventConfig {
+                            "anti_abuse.watched_actions": to_bson(&AntiAbuseEventConfig {
                                 action_type: AuditLogEventType::from(action_type),
                                 max_sanctions: *max_sanctions as i32,
                                 sanction_cooldown: *sanction_cooldown as i32,

@@ -21,7 +21,6 @@ use crate::ctx::Context;
 // }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
 pub struct GuildConfig {
     #[serde(rename = "_id")]
     pub id: Id<GuildMarker>,
@@ -181,7 +180,6 @@ impl AntiAbuseActionBuilder {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
 pub struct WelcomerConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub channel_id: Option<Id<ChannelMarker>>,
@@ -190,13 +188,11 @@ pub struct WelcomerConfig {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
 pub struct AntiAbuseConfig {
     pub watched_actions: Vec<AntiAbuseEventConfig>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
 pub struct AntiAbuseEventConfig {
     pub action_type: AuditLogEventType,
     pub max_sanctions: i32,
