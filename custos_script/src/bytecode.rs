@@ -3,14 +3,18 @@ pub enum Constant {
     Number(f64),
     Bool(bool),
     String(String),
+    Function(Function),
+    None,
 }
 
 impl Constant {
-    pub fn get_pretty_type(&self) -> &'static str {
+    pub fn get_pretty_type(&self) -> String {
         match self {
-            Constant::Number(_) => "number",
-            Constant::Bool(_) => "boolean",
-            Constant::String(_) => "string",
+            Constant::Number(_) => "number".to_owned(),
+            Constant::Bool(_) => "boolean".to_owned(),
+            Constant::String(_) => "string".to_owned(),
+            Constant::Function(f) => format!("fn <'{}' {}>", f.name, f.arity),
+            Constant::None => "none".to_owned(),
         }
     }
 }
@@ -28,13 +32,18 @@ pub enum Instruction {
     GetGlobal(String),
     GetLocal(usize),
     SetLocal(usize),
+    Call(u8),
     Pop,
     Return,
 }
 
 impl Instruction {
-    pub fn print_ins(&self, line: usize) {
-        println!("{:04}\t{:?}", line, self);
+    pub fn print_ins(&self, line: &usize) {
+        if let Instruction::Constant(Constant::Function(func)) = self {
+            println!("{:04}\tfn <'{}' {}>", line, func.name, func.arity);
+        } else {
+            println!("{:04}\t{:?}", line, self);
+        }
     }
 }
 
@@ -49,6 +58,12 @@ impl Chunk {
         self.code.push(instruction);
         self.lines.push(line);
     }
+
+    pub fn print_chunk(&self) {
+        for (ins, line) in std::iter::zip(&self.code, &self.lines) {
+            ins.print_ins(line);
+        }
+    }
 }
 
 impl std::ops::Index<usize> for Chunk {
@@ -57,6 +72,38 @@ impl std::ops::Index<usize> for Chunk {
     fn index(&self, index: usize) -> &Self::Output {
         &self.code[index]
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum FunctionType {
+    Script,
+    Function,
+}
+
+#[derive(Debug, Clone)]
+pub struct Function {
+    pub arity: u8,
+    pub chunk: Chunk,
+    pub name: String,
+    pub kind: FunctionType,
+}
+
+impl Function {
+    pub fn new(arity: u8, chunk: Chunk, name: String, kind: FunctionType) -> Function {
+        Function {
+            arity,
+            chunk,
+            name,
+            kind,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CallFrame {
+    pub function: Function,
+    pub ip: usize,
+    pub slot_offset: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -72,6 +119,19 @@ pub struct VariableManager {
 }
 
 impl VariableManager {
+    pub fn new() -> Self {
+        let mut locals = Vec::with_capacity(256);
+        locals.push(LocalVariable {
+            name: String::new(),
+            depth: 0,
+        });
+
+        VariableManager {
+            locals,
+            scope_depth: 0,
+        }
+    }
+
     pub fn start_scope(&mut self) {
         self.scope_depth += 1;
     }
@@ -120,9 +180,9 @@ impl VariableManager {
                 chunk.add_instruction(Instruction::GetLocal(stack_idx), 0);
             }
         } else if is_set {
-            chunk.add_instruction(Instruction::GetGlobal(name.to_owned()), 0);
-        } else {
             chunk.add_instruction(Instruction::SetGlobal(name.to_owned()), 0);
+        } else {
+            chunk.add_instruction(Instruction::GetGlobal(name.to_owned()), 0);
         }
     }
 
