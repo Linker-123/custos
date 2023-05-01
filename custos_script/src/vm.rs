@@ -1,6 +1,4 @@
-use std::{
-    collections::{HashMap, VecDeque},
-};
+use std::collections::{HashMap, VecDeque};
 
 use crate::bytecode::{CallFrame, Constant, Function, Instruction};
 
@@ -214,7 +212,7 @@ impl VirtualMachine {
 
                     self.globals.insert(name.to_owned(), value.clone());
                     self.stack.pop_back(); // we pop the value that we `peek_back()`'d
-                    self.frames.last_mut().unwrap().ip += 1;
+                    // self.frames.last_mut().unwrap().ip += 1;
                 }
                 Instruction::SetGlobal(name) => {
                     let value = self.peek_back().clone();
@@ -260,12 +258,60 @@ impl VirtualMachine {
                     // self.stack.pop_back();
                     continue;
                 }
+                Instruction::JumpIfFalse(offset) => {
+                    if self.peek(0).is_falsey() {
+                        self.frames.last_mut().unwrap().ip += *offset as usize;
+                    }
+                }
+                Instruction::Jump(offset) => {
+                    self.frames.last_mut().unwrap().ip += *offset as usize;
+                }
+                Instruction::Equal => {
+                    let b = self.stack.pop_back().unwrap();
+                    let a = self.stack.pop_back().unwrap();
+
+                    self.stack.push_back(Constant::Bool(a == b));
+                }
+                Instruction::NotEqual => {
+                    let b = self.stack.pop_back().unwrap();
+                    let a = self.stack.pop_back().unwrap();
+
+                    self.stack.push_back(Constant::Bool(a != b));
+                }
+                Instruction::Greater => {
+                    let b = self.stack.pop_back().unwrap();
+                    let a = self.stack.pop_back().unwrap();
+
+                    self.stack.push_back(Constant::Bool(a > b));
+                }
+                Instruction::GreaterEq => {
+                    let b = self.stack.pop_back().unwrap();
+                    let a = self.stack.pop_back().unwrap();
+
+                    self.stack.push_back(Constant::Bool(a >= b));
+                }
+                Instruction::Lesser => {
+                    let b = self.stack.pop_back().unwrap();
+                    let a = self.stack.pop_back().unwrap();
+
+                    self.stack.push_back(Constant::Bool(a < b));
+                }
+                Instruction::LesserEq => {
+                    let b = self.stack.pop_back().unwrap();
+                    let a = self.stack.pop_back().unwrap();
+
+                    self.stack.push_back(Constant::Bool(a <= b));
+                }
+                Instruction::Not => {
+                    let value = self.stack.pop_back().unwrap();
+
+                    self.stack.push_back(Constant::Bool(value.is_falsey()));
+                }
                 Instruction::Return => {
                     // self.stack.truncate(self.frames.last().unwrap().slot_offset);
                     let ret_val = self.stack.pop_back().unwrap();
 
                     self.frames.pop();
-                    println!("Popping the frame");
 
                     if self.frames.is_empty() {
                         return;

@@ -1,75 +1,64 @@
+use std::time::{Duration, Instant};
+
 use custos_script::{
-    prelude::{Chunk, Constant, Function, FunctionType, Instruction, VariableManager},
+    prelude::{Chunk, Constant, Function, FunctionType, Instruction},
     vm::VirtualMachine,
 };
 
 fn main() {
-    let mut script_chunk = Chunk::default();
-    let mut manager = VariableManager::default();
+    // THE FOLLOWING IS EQUIVALENT TO:
+    // if (2 == 2) { let then_block = 20 } else { let else_block = 10 }
+    const TIMES: u16 = 20000;
+    let mut times: Vec<Duration> = Vec::with_capacity(TIMES as usize);
 
-    let mut inner_chunk = Chunk::default();
+    for _ in 0..TIMES {
+        let mut script_chunk = Chunk::default();
+        // let mut manager = VariableManager::default();
 
-    // STATEMENT: 2.1 + 5.6;
-    inner_chunk.add_instruction(Instruction::Constant(Constant::Number(2.1)), 1); // define 2.1
-    inner_chunk.add_instruction(Instruction::Constant(Constant::Number(5.6)), 1); // define 5.6
-    inner_chunk.add_instruction(Instruction::Add, 1); // sum them up and store the result on stack
-    inner_chunk.add_instruction(Instruction::Pop, 1); // pop the result off stack because ;
+        script_chunk.add_instruction(Instruction::Constant(Constant::Number(2.)), 1);
+        script_chunk.add_instruction(Instruction::Constant(Constant::Number(2.)), 1);
+        script_chunk.add_instruction(Instruction::Equal, 1);
 
-    inner_chunk.add_instruction(Instruction::Constant(Constant::None), 1);
-    inner_chunk.add_instruction(Instruction::Return, 1); // return from the function
+        script_chunk.add_instruction(Instruction::JumpIfFalse(1), 1);
+        script_chunk.add_instruction(Instruction::Pop, 1); // Pop the comparing expression
 
-    script_chunk.add_instruction(
-        Instruction::Constant(Constant::Function(Function {
-            chunk: inner_chunk,
+        // this is incorrect in a real case scenario, but do i care?
+        script_chunk.add_instruction(Instruction::Constant(Constant::Number(20.)), 1);
+        script_chunk.add_instruction(Instruction::DefineGlobal("then_block".to_owned()), 1);
+
+        // else jump
+        script_chunk.add_instruction(Instruction::Jump(3), 1);
+
+        let conditional_jump_ins = &mut script_chunk[3];
+        *conditional_jump_ins = Instruction::JumpIfFalse(4); // 4 instructions after JumpIfFalse
+
+        script_chunk.add_instruction(Instruction::Pop, 1);
+
+        script_chunk.add_instruction(Instruction::Constant(Constant::Number(10.)), 1);
+        script_chunk.add_instruction(Instruction::DefineGlobal("else_block".to_owned()), 1);
+
+        script_chunk.add_instruction(Instruction::Constant(Constant::None), 1);
+        script_chunk.add_instruction(Instruction::Return, 2);
+
+        let start = Instant::now();
+
+        let mut vm = VirtualMachine::new(Function {
             arity: 0,
-            name: "test".to_owned(),
-            kind: FunctionType::Function,
-        })),
-        10,
-    );
+            chunk: script_chunk,
+            name: "".to_owned(),
+            kind: FunctionType::Script,
+        });
+        vm.interpret();
+        times.push(start.elapsed());
+    }
 
-    manager.add_variable(&mut script_chunk, "test");
+    let mut sum: u128 = 0;
+    for time in &times {
+        sum += time.as_micros();
+    }
 
-    let mut inner_chunk = Chunk::default();
-    // STATEMENT: 2.1 * 5.6;
-    inner_chunk.add_instruction(Instruction::Constant(Constant::Number(2.1)), 1); // define 2.1
-    inner_chunk.add_instruction(Instruction::Constant(Constant::Number(5.6)), 1); // define 5.6
-    inner_chunk.add_instruction(Instruction::Multiply, 1); // sum them up and store the result on stack
-    inner_chunk.add_instruction(Instruction::Pop, 1); // pop the result off stack because ;
-
-    inner_chunk.add_instruction(Instruction::Constant(Constant::None), 1);
-    inner_chunk.add_instruction(Instruction::Return, 1); // return from the function
-
-    script_chunk.add_instruction(
-        Instruction::Constant(Constant::Function(Function {
-            chunk: inner_chunk,
-            arity: 0,
-            name: "test2".to_owned(),
-            kind: FunctionType::Function,
-        })),
-        10,
-    );
-
-    manager.add_variable(&mut script_chunk, "test2");
-
-    manager.named_variable("test", false, &mut script_chunk);
-
-    script_chunk.add_instruction(Instruction::Call(0), 2);
-    script_chunk.add_instruction(Instruction::Pop, 2);
-
-    manager.named_variable("test2", false, &mut script_chunk);
-
-    script_chunk.add_instruction(Instruction::Call(0), 2);
-    script_chunk.add_instruction(Instruction::Pop, 2);
-
-    script_chunk.add_instruction(Instruction::Constant(Constant::None), 1);
-    script_chunk.add_instruction(Instruction::Return, 2);
-
-    let mut vm = VirtualMachine::new(Function {
-        arity: 0,
-        chunk: script_chunk,
-        name: "".to_owned(),
-        kind: FunctionType::Script,
-    });
-    vm.interpret();
+    println!(
+        "Average {:.2?}",
+        Duration::from_micros((sum / (times.len() as u128)) as u64)
+    )
 }

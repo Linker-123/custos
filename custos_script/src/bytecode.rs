@@ -17,6 +17,107 @@ impl Constant {
             Constant::None => "none".to_owned(),
         }
     }
+
+    pub fn is_falsey(&self) -> bool {
+        match &self {
+            Self::Bool(value) => !value,
+            Self::None => true,
+            _ => false,
+        }
+    }
+}
+
+impl PartialEq for Constant {
+    fn eq(&self, other: &Self) -> bool {
+        match &self {
+            Constant::Number(lhs) => {
+                if let Constant::Number(rhs) = &other {
+                    lhs == rhs
+                } else {
+                    false
+                }
+            }
+            Constant::Bool(lhs) => {
+                if let Constant::Bool(rhs) = &other {
+                    lhs == rhs
+                } else {
+                    false
+                }
+            }
+            Constant::String(lhs) => {
+                if let Constant::String(rhs) = &other {
+                    lhs == rhs
+                } else {
+                    false
+                }
+            }
+            Constant::None => {
+                matches!(other, Constant::None)
+            }
+            _ => false,
+        }
+    }
+}
+
+impl PartialOrd for Constant {
+    fn ge(&self, other: &Self) -> bool {
+        match &self {
+            Constant::Number(lhs) => {
+                if let Constant::Number(rhs) = &other {
+                    lhs >= rhs
+                } else {
+                    panic!("Cannot compare non-numbers with '>=' operator")
+                }
+            }
+            _ => panic!("Cannot compare non-numbers with '>=' operator"),
+        }
+    }
+
+    fn le(&self, other: &Self) -> bool {
+        match &self {
+            Constant::Number(lhs) => {
+                if let Constant::Number(rhs) = &other {
+                    lhs <= rhs
+                } else {
+                    panic!("Cannot compare non-numbers with '>=' operator")
+                }
+            }
+            _ => panic!("Cannot compare non-numbers with '>=' operator"),
+        }
+    }
+
+    fn gt(&self, other: &Self) -> bool {
+        match &self {
+            Constant::Number(lhs) => {
+                if let Constant::Number(rhs) = &other {
+                    lhs > rhs
+                } else {
+                    panic!("Cannot compare non-numbers with '>=' operator")
+                }
+            }
+            _ => panic!("Cannot compare non-numbers with '>=' operator"),
+        }
+    }
+
+    fn lt(&self, other: &Self) -> bool {
+        match &self {
+            Constant::Number(lhs) => {
+                if let Constant::Number(rhs) = &other {
+                    lhs >= rhs
+                } else {
+                    panic!("Cannot compare non-numbers with '>=' operator")
+                }
+            }
+            _ => panic!("Cannot compare non-numbers with '>=' operator"),
+        }
+    }
+
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match (&self, &other) {
+            (Constant::Number(lhs), Constant::Number(rhs)) => Some(lhs.partial_cmp(rhs).unwrap()),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -34,6 +135,15 @@ pub enum Instruction {
     SetLocal(usize),
     Call(u8),
     Pop,
+    Equal,
+    NotEqual,
+    Greater,
+    Lesser,
+    GreaterEq,
+    LesserEq,
+    Not,
+    JumpIfFalse(u16),
+    Jump(u16),
     Return,
 }
 
@@ -71,6 +181,12 @@ impl std::ops::Index<usize> for Chunk {
 
     fn index(&self, index: usize) -> &Self::Output {
         &self.code[index]
+    }
+}
+
+impl std::ops::IndexMut<usize> for Chunk {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.code[index]
     }
 }
 
