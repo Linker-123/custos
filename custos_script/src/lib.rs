@@ -1,7 +1,11 @@
-pub mod vm;
+pub mod ast;
 pub mod bytecode;
+pub mod parser;
+pub mod tokenizer;
+pub mod vm;
 
 pub mod prelude {
-    pub use crate::vm::*;
     pub use crate::bytecode::*;
+    pub use crate::tokenizer::*;
+    pub use crate::vm::*;
 }
