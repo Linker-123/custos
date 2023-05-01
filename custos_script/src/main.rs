@@ -64,7 +64,7 @@ fn main() {
         end
 
         func main:
-            my_func(1, 2, 3);
+            my_func(1, 2, 3)
         end        
     "
     .to_owned();
