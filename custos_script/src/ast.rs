@@ -30,6 +30,7 @@ pub enum Node {
     Ret(Ret),
     Block(Block),
     ExprStmt(ExprStmt),
+    Call(Call),
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -132,17 +133,17 @@ impl Function {
     }
 }
 
-// #[derive(Debug)]
-// pub struct Call {
-//     pub args: Vec<Box<Node>>,
-//     pub callee: Box<Node>,
-// }
+#[derive(Debug, Clone)]
+pub struct Call {
+    pub args: Vec<Node>,
+    pub callee: Box<Node>,
+}
 
-// impl Call {
-//     pub fn new(args: Vec<Box<Node>>, callee: Box<Node>) -> Box<Node> {
-//         Box::new(Node::Call(Call { args, callee }))
-//     }
-// }
+impl Call {
+    pub fn new_node(args: Vec<Node>, callee: Box<Node>) -> Box<Node> {
+        Box::new(Node::Call(Call { args, callee }))
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct VarDecl {
@@ -259,19 +260,6 @@ impl If {
         }))
     }
 }
-
-// #[derive(Debug)]
-// pub struct Use {
-//     pub module: Box<Node>,
-//     pub item: String,
-//     pub loc: (usize, usize),
-// }
-
-// impl Use {
-//     pub fn new(module: Box<Node>, item: String, loc: (usize, usize)) -> Box<Node> {
-//         Box::new(Node::Use(Use { module, item, loc }))
-//     }
-// }
 
 #[derive(Debug, Clone)]
 pub struct Ret {

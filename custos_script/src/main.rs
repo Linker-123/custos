@@ -1,6 +1,7 @@
 use custos_script::{parser::Parser, tokenizer::Tokenizer};
 
 fn main() {
+    env_logger::init();
     // THE FOLLOWING IS EQUIVALENT TO:
     // if (2 == 2) { let then_block = 20 } else { let else_block = 10 }
     // const TIMES: u16 = 20000;
@@ -58,11 +59,13 @@ fn main() {
     // )
 
     let binding = "
-        func my_func(x):
+        func my_func(y):
             var x = 3
         end
 
-        my_func()
+        func main:
+            my_func(1, 2, 3);
+        end        
     "
     .to_owned();
     let tokenizer = Tokenizer::new(&binding);

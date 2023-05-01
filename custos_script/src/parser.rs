@@ -1,6 +1,6 @@
 use crate::{
     ast::{
-        Assign, Binary, BinaryOp, Block, ExprStmt, For, Function, FunctionArg, Grouping, If,
+        Assign, Binary, BinaryOp, Block, Call, ExprStmt, For, Function, FunctionArg, Grouping, If,
         Logical, LogicalOp, Node, Ret, Unary, UnaryOp, VarDecl,
     },
     tokenizer::{get_tok_len, get_tok_loc, TokenKind, Tokenizer},
@@ -460,7 +460,38 @@ impl<'a> Parser<'a> {
             return Ok(Unary::new_node(uop, loc, expr));
         }
 
-        self.primary()
+        self.call()
+    }
+
+    fn call(&mut self) -> ParseResult<Box<Node>> {
+        let mut expr = self.primary()?;
+        loop {
+            if matches!(self, self.current, TokenKind::LeftParen(_, _)) {
+                expr = self.finish_call(expr)?;
+            } else {
+                break;
+            }
+        }
+
+        Ok(expr)
+    }
+
+    fn finish_call(&mut self, callee: Box<Node>) -> ParseResult<Box<Node>> {
+        let mut arguments = Vec::with_capacity(12);
+        if !matches!(self, self.current, TokenKind::RightParen(_, _)) {
+            loop {
+                arguments.push(*self.expr()?);
+                // self.advance();
+
+                if !matches!(self, self.current, TokenKind::Comma(_, _)) {
+                    break;
+                }
+            }
+        }
+
+        self.advance();
+
+        Ok(Call::new_node(arguments, callee))
     }
 
     fn primary(&mut self) -> ParseResult<Box<Node>> {
