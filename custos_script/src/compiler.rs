@@ -107,6 +107,15 @@ impl Compiler {
                     .borrow_mut()
                     .named_variable(&name, false, &mut self.chunk);
             }
+            Node::VarDecl(decl) => {
+                self.compile_node(*decl.value);
+                self.var_manager
+                    .borrow_mut()
+                    .add_variable(&mut self.chunk, &decl.name);
+            }
+            Node::StringLiteral(s, line, _) => self
+                .chunk
+                .add_instruction(Instruction::Constant(Constant::String(s)), line),
             _ => {
                 println!("{node:#?}");
                 unimplemented!()

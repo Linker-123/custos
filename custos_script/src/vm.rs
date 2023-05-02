@@ -1,6 +1,9 @@
 use std::collections::{HashMap, VecDeque};
 
-use crate::bytecode::{CallFrame, Constant, Function, Instruction};
+use crate::{
+    bytecode::{CallFrame, Constant, Function, Instruction},
+    prelude::BuiltInMethod,
+};
 
 #[derive(Debug, Clone)]
 pub struct VirtualMachine {
@@ -24,6 +27,11 @@ impl VirtualMachine {
             stack: VecDeque::with_capacity(256),
             globals: HashMap::with_capacity(32),
         }
+    }
+
+    pub fn define_built_in_fn(&mut self, method: BuiltInMethod) {
+        self.globals
+            .insert(method.name.to_owned(), Constant::BuiltInMethod(method));
     }
 
     pub fn print_stack(&self) {
@@ -57,24 +65,51 @@ impl VirtualMachine {
     }
 
     fn call_value(&mut self, constant: Constant, arg_count: u8) -> bool {
-        if let Constant::Function(func) = constant {
-            if func.arity != arg_count {
-                self.error(&format!(
-                    "Function '{}' accepts {} arguments but {} were provided.",
-                    func.name, func.arity, arg_count
-                ));
+        match constant {
+            Constant::Function(func) => {
+                if func.arity != arg_count {
+                    self.error(&format!(
+                        "Function '{}' accepts {} arguments but {} were provided.",
+                        func.name, func.arity, arg_count
+                    ));
+                }
+
+                let frame = CallFrame {
+                    function: func,
+                    ip: 0,
+                    slot_offset: self.stack.len() - arg_count as usize - 1,
+                };
+
+                self.frames.push(frame);
+                true
             }
+            Constant::BuiltInMethod(func) => {
+                if func.arity != 0 && func.arity != arg_count {
+                    self.error(&format!(
+                        "Function '{}' accepts {} arguments but {} were provided.",
+                        func.name, func.arity, arg_count
+                    ));
+                }
 
-            let frame = CallFrame {
-                function: func,
-                ip: 0,
-                slot_offset: self.stack.len() - arg_count as usize - 1,
-            };
+                let removed = self
+                    .stack
+                    .range(self.stack.len() - arg_count as usize..)
+                    .map(|c| c.to_owned())
+                    .collect::<Vec<Constant>>();
 
-            self.frames.push(frame);
-            true
-        } else {
-            false
+                println!(
+                    "Built-in method called: {} at address {:?}",
+                    func.name, func.function
+                );
+
+                let function = func.function;
+                let result = function(removed);
+
+                self.stack.truncate(self.stack.len() - arg_count as usize + 1);
+                self.stack.push_back(result);
+                true
+            }
+            _ => false,
         }
     }
 
@@ -212,7 +247,6 @@ impl VirtualMachine {
 
                     self.globals.insert(name.to_owned(), value.clone());
                     self.stack.pop_back(); // we pop the value that we `peek_back()`'d
-                    self.frames.last_mut().unwrap().ip += 1;
                 }
                 Instruction::SetGlobal(name) => {
                     let value = self.peek_back().clone();
@@ -256,7 +290,7 @@ impl VirtualMachine {
                     }
 
                     // self.stack.pop_back();
-                    continue;
+                    // continue;
                 }
                 Instruction::JumpIfFalse(offset) => {
                     if self.peek(0).is_falsey() {

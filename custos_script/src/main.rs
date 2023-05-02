@@ -1,7 +1,7 @@
 use custos_script::{
     compiler::Compiler,
     parser::Parser,
-    prelude::{Function, FunctionType, Instruction},
+    prelude::{BuiltInMethod, Constant, Function, FunctionType, Instruction},
     tokenizer::Tokenizer,
     vm::VirtualMachine,
 };
@@ -59,11 +59,14 @@ fn main() {
 
     let binding = "
         func sum(a, b):
-            ret a + b
+            var x = 3
+            var result = a + b + x
+            ret result
         end
 
         func main:
-            sum(1, 2)
+            // var x = sum(1, 2)
+            print(1, \"amogus\")
         end
     "
     .to_owned();
@@ -78,11 +81,25 @@ fn main() {
     chunk.add_instruction(Instruction::Call(0), 1);
     chunk.add_instruction(Instruction::Return, 1);
 
+    // chunk.print_chunk();
+
     let mut vm = VirtualMachine::new(Function {
         arity: 0,
         chunk,
         name: "".to_owned(),
         kind: FunctionType::Script,
     });
+
+    vm.define_built_in_fn(BuiltInMethod::new(
+        "print".to_owned(),
+        |args| {
+            for arg in args {
+                print!("{} ", arg);
+            }
+            println!();
+            Constant::None
+        },
+        0u8,
+    ));
     vm.interpret();
 }

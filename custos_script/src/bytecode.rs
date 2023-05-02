@@ -4,6 +4,7 @@ pub enum Constant {
     Bool(bool),
     String(String),
     Function(Function),
+    BuiltInMethod(BuiltInMethod),
     None,
 }
 
@@ -15,6 +16,7 @@ impl Constant {
             Constant::String(_) => "string".to_owned(),
             Constant::Function(f) => format!("fn <'{}' {}>", f.name, f.arity),
             Constant::None => "none".to_owned(),
+            Constant::BuiltInMethod(f) => format!("fn <built-in '{}' {}>", f.name, f.arity),
         }
     }
 
@@ -23,6 +25,23 @@ impl Constant {
             Self::Bool(value) => !value,
             Self::None => true,
             _ => false,
+        }
+    }
+}
+
+impl std::fmt::Display for Constant {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self {
+            Constant::Bool(v) => write!(f, "{}", v),
+            Constant::String(s) => write!(f, "\"{}\"", s),
+            Constant::Number(n) => write!(f, "{}", n),
+            Constant::None => write!(f, "none"),
+            Constant::Function(func) => write!(f, "fn <'{}' {}>", func.name, func.arity),
+            Constant::BuiltInMethod(func) => write!(
+                f,
+                "fn <built-in '{}' {} {:?}>",
+                func.name, func.arity, func.function
+            ),
         }
     }
 }
@@ -121,6 +140,23 @@ impl PartialOrd for Constant {
 }
 
 #[derive(Debug, Clone)]
+pub struct BuiltInMethod {
+    pub name: String,
+    pub function: fn(args: Vec<Constant>) -> Constant,
+    pub arity: u8,
+}
+
+impl BuiltInMethod {
+    pub fn new(name: String, function: fn(args: Vec<Constant>) -> Constant, arity: u8) -> Self {
+        Self {
+            name,
+            function,
+            arity,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum Instruction {
     Constant(Constant),
@@ -151,6 +187,7 @@ impl Instruction {
     pub fn print_ins(&self, line: &usize) {
         if let Instruction::Constant(Constant::Function(func)) = self {
             println!("{:04}\tfn <'{}' {}>", line, func.name, func.arity);
+            func.chunk.print_chunk();
         } else {
             println!("{:04}\t{:?}", line, self);
         }
@@ -280,21 +317,21 @@ impl VariableManager {
         } else {
             // TODO: line tracking
             chunk.add_instruction(Instruction::DefineGlobal(name.to_owned()), 0);
-            chunk.add_instruction(Instruction::Constant(Constant::String(name.to_owned())), 0);
         }
     }
 
     pub fn named_variable(&self, name: &str, is_set: bool, chunk: &mut Chunk) {
         let local_index = self.resolve_local(name);
-        println!("local_idx: {local_index:?}");
 
         // Ugly but it's better than copying name 2 times using to_owned and defining
         // the instructions in separate variables
-        if let Some(stack_idx) = local_index {
-            if is_set {
-                chunk.add_instruction(Instruction::SetLocal(stack_idx), 0);
-            } else {
-                chunk.add_instruction(Instruction::GetLocal(stack_idx), 0);
+        if name != "print" {
+            if let Some(stack_idx) = local_index {
+                if is_set {
+                    chunk.add_instruction(Instruction::SetLocal(stack_idx), 0);
+                } else {
+                    chunk.add_instruction(Instruction::GetLocal(stack_idx), 0);
+                }
             }
         } else if is_set {
             chunk.add_instruction(Instruction::SetGlobal(name.to_owned()), 0);
