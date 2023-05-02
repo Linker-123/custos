@@ -1,4 +1,10 @@
-use custos_script::{parser::Parser, tokenizer::Tokenizer};
+use custos_script::{
+    compiler::Compiler,
+    parser::Parser,
+    prelude::{Function, FunctionType, Instruction},
+    tokenizer::Tokenizer,
+    vm::VirtualMachine,
+};
 
 fn main() {
     env_logger::init();
@@ -38,13 +44,6 @@ fn main() {
 
     //     let start = Instant::now();
 
-    //     let mut vm = VirtualMachine::new(Function {
-    //         arity: 0,
-    //         chunk: script_chunk,
-    //         name: "".to_owned(),
-    //         kind: FunctionType::Script,
-    //     });
-    //     vm.interpret();
     //     times.push(start.elapsed());
     // }
 
@@ -59,20 +58,31 @@ fn main() {
     // )
 
     let binding = "
-        func my_func(y):
-            var x = 3
+        func sum(a, b):
+            ret a + b
         end
 
         func main:
-            my_func(1, 2, 3)
-        end        
+            sum(1, 2)
+        end
     "
     .to_owned();
     let tokenizer = Tokenizer::new(&binding);
     let mut parser = Parser::new(tokenizer, &binding);
     parser.parse();
 
-    for decl in parser.declarations {
-        println!("{decl:#?}");
-    }
+    let compiler = Compiler::default();
+    let mut chunk = compiler.compile_non_boxed(parser.declarations);
+
+    chunk.add_instruction(Instruction::GetGlobal("main".to_string()), 1);
+    chunk.add_instruction(Instruction::Call(0), 1);
+    chunk.add_instruction(Instruction::Return, 1);
+
+    let mut vm = VirtualMachine::new(Function {
+        arity: 0,
+        chunk,
+        name: "".to_owned(),
+        kind: FunctionType::Script,
+    });
+    vm.interpret();
 }

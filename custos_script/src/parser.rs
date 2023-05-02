@@ -33,7 +33,7 @@ pub struct Parser<'a> {
     tokenizer: Tokenizer<'a>,
     current: TokenKind,
     source: &'a String,
-    pub declarations: Vec<Box<Node>>,
+    pub declarations: Vec<Node>,
 }
 
 impl<'a> Parser<'a> {
@@ -53,7 +53,8 @@ impl<'a> Parser<'a> {
             match declaration {
                 Ok(res) => {
                     if let Some(decl) = res {
-                        self.declarations.push(decl);
+                        let declaration = *decl;
+                        self.declarations.push(declaration);
                     }
                 }
                 Err(e) => {
@@ -481,7 +482,6 @@ impl<'a> Parser<'a> {
         if !matches!(self, self.current, TokenKind::RightParen(_, _)) {
             loop {
                 arguments.push(*self.expr()?);
-                // self.advance();
 
                 if !matches!(self, self.current, TokenKind::Comma(_, _)) {
                     break;

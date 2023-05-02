@@ -286,6 +286,7 @@ impl VariableManager {
 
     pub fn named_variable(&self, name: &str, is_set: bool, chunk: &mut Chunk) {
         let local_index = self.resolve_local(name);
+        println!("local_idx: {local_index:?}");
 
         // Ugly but it's better than copying name 2 times using to_owned and defining
         // the instructions in separate variables
@@ -305,7 +306,7 @@ impl VariableManager {
     pub fn resolve_local(&self, name: &str) -> Option<usize> {
         for (index, local) in self.locals.iter().enumerate().rev() {
             if local.name == name {
-                return Some(index);
+                return Some(index + 1); // + 1 cuz we have a default value on the stack;
             }
         }
         None

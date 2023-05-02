@@ -212,7 +212,7 @@ impl VirtualMachine {
 
                     self.globals.insert(name.to_owned(), value.clone());
                     self.stack.pop_back(); // we pop the value that we `peek_back()`'d
-                    // self.frames.last_mut().unwrap().ip += 1;
+                    self.frames.last_mut().unwrap().ip += 1;
                 }
                 Instruction::SetGlobal(name) => {
                     let value = self.peek_back().clone();
