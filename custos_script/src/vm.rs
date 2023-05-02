@@ -107,7 +107,10 @@ impl VirtualMachine {
                 let function = func.function;
                 let result = function(removed);
 
-                self.stack.truncate(self.stack.len() - arg_count as usize + 1);
+                println!("Stack before: {:#?}", self.stack);
+                self.stack
+                    .truncate(self.stack.len() - arg_count as usize + 1);
+                println!("Stack after: {:#?}", self.stack);
                 self.stack.push_back(result);
                 true
             }
@@ -128,12 +131,12 @@ impl VirtualMachine {
 
     pub fn interpret(&mut self) {
         loop {
-            let frame = self.frames.last().unwrap();
+            let mut frame = self.frames.last().unwrap();
             let ins = &frame.function.chunk[frame.ip];
             let line = &frame.function.chunk.lines[frame.ip];
 
             self.print_stack();
-            ins.print_ins(line);
+            ins.print_ins(line, Some(&self.stack));
 
             match ins {
                 Instruction::Constant(constant) => {
@@ -285,16 +288,13 @@ impl VirtualMachine {
                     self.stack.pop_back();
                 }
                 Instruction::Call(arg_count) => {
-
+                    self.stack.len();
                     let function = self.peek(*arg_count as usize).to_owned();
-                    debug!("func: {function:?}");
                     let value = self.call_value(function, *arg_count);
                     if !value {
                         unimplemented!()
                     }
-
-                    // self.stack.pop_back();
-                    // continue;
+                    continue;
                 }
                 Instruction::JumpIfFalse(offset) => {
                     if self.peek(0).is_falsey() {
@@ -349,13 +349,16 @@ impl VirtualMachine {
                     // self.stack.truncate(self.frames.last().unwrap().slot_offset);
                     let ret_val = self.stack.pop_back().unwrap();
 
+                    let offset = self.frames.last().unwrap().slot_offset;
                     self.frames.pop();
 
                     if self.frames.is_empty() {
                         return;
                     }
 
-                    self.stack.truncate(self.frames.last().unwrap().slot_offset);
+                    println!("truncate stack?");
+                    
+                    self.stack.truncate(offset);
                     self.stack.push_back(ret_val);
                 }
                 _ => unimplemented!(),

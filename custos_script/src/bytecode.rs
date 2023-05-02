@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 #[derive(Debug, Clone)]
 pub enum Constant {
     Number(f64),
@@ -184,12 +186,20 @@ pub enum Instruction {
 }
 
 impl Instruction {
-    pub fn print_ins(&self, line: &usize) {
-        if let Instruction::Constant(Constant::Function(func)) = self {
-            println!("{:04}\tfn <'{}' {}>", line, func.name, func.arity);
-            func.chunk.print_chunk();
-        } else {
-            println!("{:04}\t{:?}", line, self);
+    pub fn print_ins(&self, line: &usize, stack: Option<&VecDeque<Constant>>) {
+        match &self {
+            Instruction::Constant(Constant::Function(func)) => {
+                println!("{:04}\tfn <'{}' {}>", line, func.name, func.arity);
+                func.chunk.print_chunk();
+            }
+            Instruction::Call(index) => {
+                if let Some(stack) = stack {
+                    println!("{:04}\tCall({} at {})", line, &stack[(*index).into()], index);
+                } else {
+                    println!("{:04}\t{:?}", line, self);
+                }
+            }
+            _ => println!("{:04}\t{:?}", line, self),
         }
     }
 }
@@ -208,7 +218,7 @@ impl Chunk {
 
     pub fn print_chunk(&self) {
         for (ins, line) in std::iter::zip(&self.code, &self.lines) {
-            ins.print_ins(line);
+            ins.print_ins(line, None);
         }
     }
 }
