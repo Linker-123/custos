@@ -274,10 +274,10 @@ pub struct VariableManager {
 impl VariableManager {
     pub fn new() -> Self {
         let mut locals = Vec::with_capacity(256);
-        locals.push(LocalVariable {
-            name: String::new(),
-            depth: 0,
-        });
+        // locals.push(LocalVariable {
+        // name: String::new(),
+        // depth: 0,
+        // });
 
         VariableManager {
             locals,
@@ -325,13 +325,12 @@ impl VariableManager {
 
         // Ugly but it's better than copying name 2 times using to_owned and defining
         // the instructions in separate variables
-        if name != "print" {
-            if let Some(stack_idx) = local_index {
-                if is_set {
-                    chunk.add_instruction(Instruction::SetLocal(stack_idx), 0);
-                } else {
-                    chunk.add_instruction(Instruction::GetLocal(stack_idx), 0);
-                }
+
+        if let Some(stack_idx) = local_index {
+            if is_set {
+                chunk.add_instruction(Instruction::SetLocal(stack_idx), 0);
+            } else {
+                chunk.add_instruction(Instruction::GetLocal(stack_idx), 0);
             }
         } else if is_set {
             chunk.add_instruction(Instruction::SetGlobal(name.to_owned()), 0);

@@ -1,5 +1,7 @@
 use std::collections::{HashMap, VecDeque};
 
+use log::debug;
+
 use crate::{
     bytecode::{CallFrame, Constant, Function, Instruction},
     prelude::BuiltInMethod,
@@ -283,7 +285,9 @@ impl VirtualMachine {
                     self.stack.pop_back();
                 }
                 Instruction::Call(arg_count) => {
+
                     let function = self.peek(*arg_count as usize).to_owned();
+                    debug!("func: {function:?}");
                     let value = self.call_value(function, *arg_count);
                     if !value {
                         unimplemented!()

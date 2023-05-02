@@ -65,14 +65,16 @@ fn main() {
         end
 
         func main:
-            // var x = sum(1, 2)
-            print(1, \"amogus\")
+            var x = sum(1, 2)
+            // print(1, \"amogus\")
         end
     "
     .to_owned();
     let tokenizer = Tokenizer::new(&binding);
     let mut parser = Parser::new(tokenizer, &binding);
     parser.parse();
+
+    println!("tree: {:#?}", parser.declarations);
 
     let compiler = Compiler::default();
     let mut chunk = compiler.compile_non_boxed(parser.declarations);
@@ -81,7 +83,7 @@ fn main() {
     chunk.add_instruction(Instruction::Call(0), 1);
     chunk.add_instruction(Instruction::Return, 1);
 
-    // chunk.print_chunk();
+    chunk.print_chunk();
 
     let mut vm = VirtualMachine::new(Function {
         arity: 0,

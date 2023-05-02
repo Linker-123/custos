@@ -52,9 +52,11 @@ impl Compiler {
                     .add_variable(&mut self.chunk, &func.name);
             }
             Node::Block(block) => {
+                self.var_manager.borrow_mut().start_scope();
                 for decl in block.statements {
                     self.compile_node(decl);
                 }
+                self.var_manager.borrow_mut().end_scope(&mut self.chunk);
             }
             Node::Binary(binary) => {
                 self.compile_node(*binary.lhs);
@@ -87,9 +89,9 @@ impl Compiler {
                     self.compile_node(arg);
                 }
 
+                // TODO: fix line location
                 self.chunk
                     .add_instruction(Instruction::Call(arg_count as u8), 1);
-                // TODO: fix line location
             }
             Node::Ret(ret) => {
                 if let Some(value) = ret.value {
