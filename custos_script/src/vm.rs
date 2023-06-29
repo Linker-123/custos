@@ -7,6 +7,12 @@ use crate::{
     prelude::BuiltInMethod,
 };
 
+pub enum CallResult {
+    Ok,
+    OkNative,
+    Err,
+}
+
 #[derive(Debug, Clone)]
 pub struct VirtualMachine {
     stack: VecDeque<Constant>,
@@ -66,7 +72,7 @@ impl VirtualMachine {
         )
     }
 
-    fn call_value(&mut self, constant: Constant, arg_count: u8) -> bool {
+    fn call_value(&mut self, constant: Constant, arg_count: u8) -> CallResult {
         match constant {
             Constant::Function(func) => {
                 if func.arity != arg_count {
@@ -83,7 +89,7 @@ impl VirtualMachine {
                 };
 
                 self.frames.push(frame);
-                true
+                CallResult::Ok
             }
             Constant::BuiltInMethod(func) => {
                 if func.arity != 0 && func.arity != arg_count {
@@ -95,7 +101,7 @@ impl VirtualMachine {
 
                 let removed = self
                     .stack
-                    .range(self.stack.len() - arg_count as usize..)
+                    .range(self.stack.len() - arg_count as usize - 1..)
                     .map(|c| c.to_owned())
                     .collect::<Vec<Constant>>();
 
@@ -107,14 +113,18 @@ impl VirtualMachine {
                 let function = func.function;
                 let result = function(removed);
 
-                println!("Stack before: {:#?}", self.stack);
+                // println!(
+                //     "result: {:#?}, stack before: {}, stack after: {}",
+                //     result,
+                //     self.stack.len(),
+                //     self.stack.len() - arg_count as usize
+                // );
                 self.stack
-                    .truncate(self.stack.len() - arg_count as usize + 1);
-                println!("Stack after: {:#?}", self.stack);
+                    .truncate(self.stack.len() - arg_count as usize - 1);
                 self.stack.push_back(result);
-                true
+                CallResult::OkNative
             }
-            _ => false,
+            _ => CallResult::Err,
         }
     }
 
@@ -288,11 +298,16 @@ impl VirtualMachine {
                     self.stack.pop_back();
                 }
                 Instruction::Call(arg_count) => {
-                    self.stack.len();
                     let function = self.peek(*arg_count as usize).to_owned();
                     let value = self.call_value(function, *arg_count);
-                    if !value {
-                        unimplemented!()
+
+                    match value {
+                        CallResult::Err => unimplemented!(),
+                        CallResult::OkNative => {
+                            // because native functions dont have RETURN
+                            self.frames.last_mut().unwrap().ip += 1;
+                        }
+                        _ => (),
                     }
                     continue;
                 }
@@ -356,8 +371,6 @@ impl VirtualMachine {
                         return;
                     }
 
-                    println!("truncate stack?");
-                    
                     self.stack.truncate(offset);
                     self.stack.push_back(ret_val);
                 }

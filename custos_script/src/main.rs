@@ -58,12 +58,14 @@ fn main() {
     // )
 
     let binding = "
-        func sum(a, b):
-            ret a +b
+        func sum(a, b, c):
+            ret a + b + c
         end
 
         func main:
-            var x = sum(sum(5, 1), sum(10, 1))
+            var x = sum(1, 2, 3)
+
+            print(x)
         end
     "
     .to_owned();
@@ -89,7 +91,7 @@ fn main() {
         "print".to_owned(),
         |args| {
             for arg in args {
-                print!("{} ", arg);
+                print!("\n{} ", arg);
             }
             println!();
             Constant::None
