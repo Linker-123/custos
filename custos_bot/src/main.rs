@@ -18,6 +18,7 @@ mod plugins;
 mod schemas;
 mod tags;
 mod util;
+mod sync_http;
 
 #[tokio::main]
 async fn main() -> Result<()> {

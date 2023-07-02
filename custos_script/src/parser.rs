@@ -5,13 +5,11 @@ use crate::{
     },
     tokenizer::{get_tok_len, get_tok_loc, TokenKind, Tokenizer},
 };
-use colored::Colorize;
-use log::error;
 
 macro_rules! matches {
     ($self: ident, $($tts:tt)*) => {
         if std::matches!($($tts)*) {
-            $self.advance();
+            $self.advance()?;
             true
         } else {
             false
@@ -37,19 +35,23 @@ pub struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(mut tokenizer: Tokenizer<'a>, source: &'a String) -> Parser<'a> {
-        let current = tokenizer.next().unwrap();
-        Parser {
+    pub fn new(mut tokenizer: Tokenizer<'a>, source: &'a String) -> ParseResult<Parser<'a>> {
+        let current = tokenizer.next().unwrap()?;
+
+        println!("{:#?}", current);
+        Ok(Parser {
             tokenizer,
             current,
             source,
             declarations: Vec::new(),
-        }
+        })
     }
 
-    pub fn parse(&mut self) {
+    pub fn parse(&mut self) -> ParseResult<()> {
+        let mut errors = Vec::new();
         while !self.is_at_end() {
             let declaration = self.declaration();
+
             match declaration {
                 Ok(res) => {
                     if let Some(decl) = res {
@@ -58,20 +60,26 @@ impl<'a> Parser<'a> {
                     }
                 }
                 Err(e) => {
-                    error!("{}", e);
-                    self.synchronize();
+                    errors.push(format!("{}", e));
+                    self.synchronize()?;
                 }
             }
         }
+
+        if !errors.is_empty() {
+            let error = errors.join("\n");
+            return Err(error);
+        }
+        Ok(())
     }
 
-    fn synchronize(&mut self) {
+    fn synchronize(&mut self) -> ParseResult<()> {
         let mut previous = self.current.clone();
-        self.advance();
+        self.advance()?;
 
         while !self.is_at_end() {
             if let TokenKind::ExprDelimiter(_, _) = previous {
-                return;
+                return Ok(());
             }
             match self.current {
                 TokenKind::Func(_, _)
@@ -79,17 +87,19 @@ impl<'a> Parser<'a> {
                 | TokenKind::If(_, _)
                 | TokenKind::Ret(_, _)
                 | TokenKind::End(_, _)
-                | TokenKind::Else(_, _) => return,
+                | TokenKind::Else(_, _) => return Ok(()),
                 _ => (),
             }
             previous = self.current.clone();
-            self.advance();
+            self.advance()?;
         }
+
+        Ok(())
     }
 
     fn error(&self, message: &str, token: &TokenKind) -> String {
         let mut lines = self.source.lines();
-        let (line, column) = get_tok_loc(token);
+        let (line, column) = get_tok_loc(token).unwrap_or((1, 1));
         let source_line: &str = lines.nth(line - 1).unwrap();
         let src = source_line.trim_start();
         let offset = source_line.len() - src.len();
@@ -103,7 +113,7 @@ impl<'a> Parser<'a> {
             message,
             src,
             " ".repeat(column - offset - len - 1),
-            "~".repeat(len).green()
+            "~".repeat(len)
         )
     }
 
@@ -130,7 +140,7 @@ impl<'a> Parser<'a> {
             return Ok(Some(Block::new_node(block)));
         }
         if matches!(self, self.current, TokenKind::Ret(_, _)) {
-            let stmt = self.ret_stmt(loc)?;
+            let stmt = self.ret_stmt(loc?)?;
             return Ok(Some(stmt));
         }
         if matches!(self, self.current, TokenKind::For(_, _)) {
@@ -157,7 +167,7 @@ impl<'a> Parser<'a> {
             return Err(self.error("expected an identifier", &self.current));
         }
 
-        self.advance();
+        self.advance()?;
 
         consume!(self, "expected '='", self.current, TokenKind::Equal(_, _));
 
@@ -175,11 +185,11 @@ impl<'a> Parser<'a> {
             return Err(self.error("expected an identifier", &self.current));
         }
 
-        self.advance();
+        self.advance()?;
 
         let mut args = Vec::with_capacity(10);
         if let TokenKind::LeftParen(_, _) = &self.current {
-            self.advance();
+            self.advance()?;
             loop {
                 // stuff
                 let arg_name;
@@ -192,7 +202,7 @@ impl<'a> Parser<'a> {
                 }
 
                 args.push(FunctionArg::new(arg_name, arg_name_loc));
-                self.advance();
+                self.advance()?;
 
                 if !matches!(self, self.current, TokenKind::Comma(_, _)) {
                     break;
@@ -256,7 +266,7 @@ impl<'a> Parser<'a> {
         if let TokenKind::IdenLiteral(n, line, column) = &self.current {
             name = n.clone();
             name_loc = (*line, *column);
-            self.advance();
+            self.advance()?;
         } else {
             return Err(self.error("expected an identifier", &self.current));
         }
@@ -270,6 +280,7 @@ impl<'a> Parser<'a> {
     }
 
     fn block(&mut self) -> ParseResult<Vec<Node>> {
+        let mut errors = Vec::new();
         let mut statements: Vec<Node> = Vec::with_capacity(10);
         while !std::matches!(self.current, TokenKind::End(_, _)) && !self.is_at_end() {
             let declaration = self.declaration();
@@ -281,10 +292,15 @@ impl<'a> Parser<'a> {
                     }
                 }
                 Err(e) => {
-                    error!("{}", e);
-                    self.synchronize();
+                    errors.push(e);
+                    self.synchronize()?;
                 }
             }
+        }
+
+        if !errors.is_empty() {
+            let error = errors.join("\n");
+            return Err(error);
         }
 
         consume!(
@@ -450,10 +466,10 @@ impl<'a> Parser<'a> {
 
         if matches!(self, self.current, TokenKind::Bang(_, _)) {
             uop = UnaryOp::Not;
-            loc = get_tok_loc(&self.current);
+            loc = get_tok_loc(&self.current)?;
         } else if matches!(self, self.current, TokenKind::Minus(_, _)) {
             uop = UnaryOp::Negate;
-            loc = get_tok_loc(&self.current);
+            loc = get_tok_loc(&self.current)?;
         }
 
         if uop != UnaryOp::None {
@@ -489,7 +505,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        self.advance();
+        self.advance()?;
 
         Ok(Call::new_node(arguments, callee))
     }
@@ -504,7 +520,7 @@ impl<'a> Parser<'a> {
             }
             TokenKind::IdenLiteral(ident, line, column) => Node::VarGet(ident, line, column),
             TokenKind::LeftParen(_, _) => {
-                self.advance();
+                self.advance()?;
                 let expr = self.expr()?;
                 consume!(
                     self,
@@ -519,12 +535,16 @@ impl<'a> Parser<'a> {
             }
         };
 
-        self.advance();
+        self.advance()?;
         Ok(Box::new(node))
     }
 
-    fn advance(&mut self) {
-        self.current = self.tokenizer.next().unwrap_or(TokenKind::Eof);
+    fn advance(&mut self) -> ParseResult<()> {
+        let next_token = self.tokenizer.next();
+
+        println!("next token: {:#?}", next_token);
+        self.current = next_token.unwrap_or(Ok(TokenKind::Eof))?;
+        Ok(())
     }
 
     fn is_at_end(&mut self) -> bool {

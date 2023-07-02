@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, rc::Rc};
 
 #[derive(Debug, Clone)]
 pub enum Constant {
@@ -7,6 +7,7 @@ pub enum Constant {
     String(String),
     Function(Function),
     BuiltInMethod(BuiltInMethod),
+    // Array(Vec<Constant>),
     None,
 }
 
@@ -29,6 +30,17 @@ impl Constant {
             _ => false,
         }
     }
+
+    pub fn get_string(&self) -> String {
+        match self {
+            Constant::Bool(b) => b.to_string(),
+            Constant::Number(n) => n.to_string(),
+            Constant::String(s) => s.to_owned(),
+            Constant::None => "none".to_string(),
+            Constant::Function(f) => format!("fn <'{}' {}>", f.name, f.arity),
+            Constant::BuiltInMethod(f) => format!("fn <built-in '{}' {}>", f.name, f.arity),
+        }
+    }
 }
 
 impl std::fmt::Display for Constant {
@@ -39,11 +51,9 @@ impl std::fmt::Display for Constant {
             Constant::Number(n) => write!(f, "{}", n),
             Constant::None => write!(f, "none"),
             Constant::Function(func) => write!(f, "fn <'{}' {}>", func.name, func.arity),
-            Constant::BuiltInMethod(func) => write!(
-                f,
-                "fn <built-in '{}' {} {:?}>",
-                func.name, func.arity, func.function
-            ),
+            Constant::BuiltInMethod(func) => {
+                write!(f, "fn <built-in '{}' {}>", func.name, func.arity)
+            }
         }
     }
 }
@@ -141,20 +151,26 @@ impl PartialOrd for Constant {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct BuiltInMethod {
     pub name: String,
-    pub function: fn(args: Vec<Constant>) -> Constant,
+    pub func: Rc<dyn Fn(Vec<Constant>) -> Constant>,
     pub arity: u8,
 }
 
 impl BuiltInMethod {
-    pub fn new(name: String, function: fn(args: Vec<Constant>) -> Constant, arity: u8) -> Self {
+    pub fn new(name: String, function: Rc<dyn Fn(Vec<Constant>) -> Constant>, arity: u8) -> Self {
         Self {
             name,
-            function,
+            func: function,
             arity,
         }
+    }
+}
+
+impl std::fmt::Debug for BuiltInMethod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "fn <built-in '{}' {}", self.name, self.arity)
     }
 }
 
@@ -194,7 +210,12 @@ impl Instruction {
             }
             Instruction::Call(index) => {
                 if let Some(stack) = stack {
-                    println!("{:04}\tCall({} at {})", line, &stack[(*index).into()], index);
+                    println!(
+                        "{:04}\tCall({} at {})",
+                        line,
+                        &stack[(*index).into()],
+                        index
+                    );
                 } else {
                     println!("{:04}\t{:?}", line, self);
                 }
@@ -283,7 +304,7 @@ pub struct VariableManager {
 
 impl VariableManager {
     pub fn new() -> Self {
-        let mut locals = Vec::with_capacity(256);
+        let locals = Vec::with_capacity(256);
         // locals.push(LocalVariable {
         // name: String::new(),
         // depth: 0,

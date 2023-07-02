@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{time::Duration};
 
 use anyhow::Result;
 use config::Config;
@@ -7,6 +7,7 @@ use mongodb::{
     options::{ClientOptions, IndexOptions},
     Client as MongoClient, IndexModel,
 };
+
 use twilight_cache_inmemory::InMemoryCache;
 use twilight_http::{client::InteractionClient, Client as HttpClient};
 use twilight_model::oauth::Application;
@@ -16,6 +17,7 @@ use crate::{
         anti_abuse::AntiAbuseCommand, debug::PingCommand, welcomer::WelcomerCommand, CustosCommand,
     },
     plugins::anti_abuse::schemas::AuditLogEntry,
+    sync_http::SyncHttpClient,
 };
 
 #[derive(Debug)]
@@ -25,26 +27,29 @@ pub struct Context {
     pub app: Application,
     pub mongodb: MongoClient,
     pub config: Config,
+    pub http_sync: SyncHttpClient,
 }
 
 impl Context {
     pub async fn new(config: Config) -> Result<Self> {
-        let http = HttpClient::new(config.get_string("token")?);
+        let token = config.get_string("token")?;
+        let http_sync = SyncHttpClient::new(&token);
+        let http = HttpClient::new(token);
+
         let app = http.current_user_application().await?.model().await?;
 
         let options = ClientOptions::parse_async(config.get_string("mongodb_address")?).await?;
         let mongodb = MongoClient::with_options(options)?;
-
         let context = Context {
             cache: InMemoryCache::new(),
             http,
             app,
             mongodb,
             config,
+            http_sync,
         };
 
         context.register_indexes().await?;
-
         Ok(context)
     }
 

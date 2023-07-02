@@ -47,8 +47,8 @@ pub enum TokenKind {
     Eof,
 }
 
-pub fn get_tok_loc(token: &TokenKind) -> (usize, usize) {
-    match token {
+pub fn get_tok_loc(token: &TokenKind) -> Result<(usize, usize), String> {
+    Ok(match token {
         // TokenKind::LeftBrace(a, b) => (*a, *b),
         // TokenKind::RightBrace(a, b) => (*a, *b)
         TokenKind::End(a, b) => (*a, *b),
@@ -93,8 +93,8 @@ pub fn get_tok_loc(token: &TokenKind) -> (usize, usize) {
         // TokenKind::GetPtr(a, b) => (*a, *b),
         TokenKind::LeftBracket(a, b) => (*a, *b),
         TokenKind::RightBracket(a, b) => (*a, *b),
-        TokenKind::Eof => panic!("Unsupported token"),
-    }
+        TokenKind::Eof => return Err("Unsupported token".to_owned()),
+    })
 }
 
 pub fn get_tok_len(token: &TokenKind) -> usize {
@@ -250,7 +250,7 @@ impl<'a> Tokenizer<'a> {
         }
     }
 
-    fn string(&mut self) -> TokenKind {
+    fn string(&mut self) -> Result<TokenKind, String> {
         while self.peek() != Some('"') && !self.is_at_end() {
             if self.peek() == Some('\n') {
                 self.line += 1;
@@ -260,11 +260,14 @@ impl<'a> Tokenizer<'a> {
         }
 
         if self.is_at_end() {
-            panic!("Unterminated string at {}:{}", self.line, self.current);
+            return Err(format!(
+                "Unterminated string at {}:{}",
+                self.line, self.current
+            ));
         }
 
         self.advance();
-        TokenKind::StrLiteral(
+        Ok(TokenKind::StrLiteral(
             self.source
                 .chars()
                 .skip(self.start + 1)
@@ -272,7 +275,7 @@ impl<'a> Tokenizer<'a> {
                 .collect(),
             self.line,
             self.column,
-        )
+        ))
     }
 
     fn number(&mut self) -> TokenKind {
@@ -327,7 +330,7 @@ impl<'a> Tokenizer<'a> {
     }
 
     /// Saves the cursor state and parses the next token then restores the cursor state
-    pub fn peek_ahead(&mut self) -> Option<TokenKind> {
+    pub fn peek_ahead(&mut self) -> Option<Result<TokenKind, String>> {
         let start = self.start;
         let current = self.current;
         let line = self.line;
@@ -344,7 +347,7 @@ impl<'a> Tokenizer<'a> {
 }
 
 impl<'a> Iterator for Tokenizer<'a> {
-    type Item = TokenKind;
+    type Item = Result<TokenKind, String>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.skip_whitespace();
@@ -359,75 +362,77 @@ impl<'a> Iterator for Tokenizer<'a> {
         };
 
         if is_alpha(c) {
-            return Some(self.identifier());
+            return Some(Ok(self.identifier()));
         }
         if is_digit(c) {
-            return Some(self.number());
+            return Some(Ok(self.number()));
         }
 
-        match c {
-            '(' => Some(TokenKind::LeftParen(self.line, self.column)),
-            ')' => Some(TokenKind::RightParen(self.line, self.column)),
-            // '{' => Some(TokenKind::LeftBrace(self.line, self.column)),
-            // '}' => Some(TokenKind::RightBrace(self.line, self.column)),
-            '[' => Some(TokenKind::LeftBracket(self.line, self.column)),
-            ']' => Some(TokenKind::RightBracket(self.line, self.column)),
-            ':' => Some(if self.matches('=') {
-                TokenKind::ColonEq(self.line, self.column)
-            } else {
-                TokenKind::Colon(self.line, self.column)
-            }),
-            '.' => Some(TokenKind::Dot(self.line, self.column)),
-            ',' => Some(TokenKind::Comma(self.line, self.column)),
-            '+' => Some(TokenKind::Plus(self.line, self.column)),
-            '-' => Some(
-                /*if self.matches('>') {
-                    TokenKind::Arrow(self.line, self.column)
-                } else {*/
-                TokenKind::Minus(self.line, self.column),
-                // }
-            ),
-            '*' => Some(TokenKind::Star(self.line, self.column)),
-            '/' => Some(TokenKind::Slash(self.line, self.column)),
-            '"' => Some(self.string()),
-            '!' => Some(if self.matches('=') {
-                TokenKind::NotEqual(self.line, self.column)
-            } else {
-                TokenKind::Bang(self.line, self.column)
-            }),
-            '>' => Some(if self.matches('=') {
-                TokenKind::GreaterEq(self.line, self.column)
-            } else {
-                TokenKind::Greater(self.line, self.column)
-            }),
-            '<' => Some(if self.matches('=') {
-                TokenKind::LessEq(self.line, self.column)
-            } else {
-                TokenKind::Less(self.line, self.column)
-            }),
-            '=' => Some(if self.matches('=') {
-                TokenKind::EqualEqual(self.line, self.column)
-            } else {
-                TokenKind::Equal(self.line, self.column)
-            }),
-            '|' => Some(if self.matches('|') {
-                TokenKind::Or(self.line, self.column)
-            } else {
-                return None;
-            }),
-            '&' => Some(
-                // if self.matches('&') {
-                TokenKind::And(self.line, self.column), /*},  else {
-                                                            TokenKind::GetPtr(self.line, self.column)
-                                                        }*/
-            ),
-            ';' => Some(TokenKind::ExprDelimiter(self.line, self.column)),
+
+        Some(Ok(match c {
+            '(' => TokenKind::LeftParen(self.line, self.column),
+            ')' => TokenKind::RightParen(self.line, self.column),
+            // '{' => (TokenKind::LeftBrace(self.line, self.column)),
+            // '}' => (TokenKind::RightBrace(self.line, self.column)),
+            '[' => TokenKind::LeftBracket(self.line, self.column),
+            ']' => TokenKind::RightBracket(self.line, self.column),
+            ':' => {
+                if self.matches('=') {
+                    TokenKind::ColonEq(self.line, self.column)
+                } else {
+                    TokenKind::Colon(self.line, self.column)
+                }
+            }
+            '.' => TokenKind::Dot(self.line, self.column),
+            ',' => TokenKind::Comma(self.line, self.column),
+            '+' => TokenKind::Plus(self.line, self.column),
+            '-' => TokenKind::Minus(self.line, self.column),
+            '*' => TokenKind::Star(self.line, self.column),
+            '/' => TokenKind::Slash(self.line, self.column),
+            '"' => return Some(self.string()),
+            '!' => {
+                if self.matches('=') {
+                    TokenKind::NotEqual(self.line, self.column)
+                } else {
+                    TokenKind::Bang(self.line, self.column)
+                }
+            }
+            '>' => {
+                if self.matches('=') {
+                    TokenKind::GreaterEq(self.line, self.column)
+                } else {
+                    TokenKind::Greater(self.line, self.column)
+                }
+            }
+            '<' => {
+                if self.matches('=') {
+                    TokenKind::LessEq(self.line, self.column)
+                } else {
+                    TokenKind::Less(self.line, self.column)
+                }
+            }
+            '=' => {
+                if self.matches('=') {
+                    TokenKind::EqualEqual(self.line, self.column)
+                } else {
+                    TokenKind::Equal(self.line, self.column)
+                }
+            }
+            '|' => {
+                if self.matches('|') {
+                    TokenKind::Or(self.line, self.column)
+                } else {
+                    return None;
+                }
+            }
+            '&' => TokenKind::And(self.line, self.column),
+            ';' => TokenKind::ExprDelimiter(self.line, self.column),
             '\n' => {
                 self.line += 1;
                 self.column = 1;
-                Some(TokenKind::ExprDelimiter(self.line, self.column))
+                TokenKind::ExprDelimiter(self.line, self.column)
             }
-            _ => None,
-        }
+            _ => return None,
+        }))
     }
 }

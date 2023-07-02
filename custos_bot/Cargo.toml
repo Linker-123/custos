@@ -1,27 +1,30 @@
 [package]
+edition = "2021"
 name = "custos_bot"
 version = "0.1.0"
-edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 anyhow = "1.0.70"
 async-trait = "0.1.68"
-bson = { version = "2.6.1", features = ["chrono-0_4"] }
+bson = {version = "2.6.1", features = ["chrono-0_4"]}
 chrono = "0.4.24"
 clap = "4.2.5"
 config = "0.13.3"
+custos_script = {path = "../custos_script"}
 futures-util = "0.3.28"
 lazy_static = "1.4.0"
 mongodb = "2.5.0"
+rayon = "1.7.0"
+reqwest = {version = "0.11.18", features = ["blocking", "json"]}
 serde = "1.0.160"
 serde_json = "1.0.96"
-tokio = { version = "1.27.0", features = ["full"] }
+tokio = {version = "1.27.0", features = ["full"]}
 tracing = "0.1.37"
 tracing-subscriber = "0.3.17"
 twilight-cache-inmemory = "0.15.1"
 twilight-gateway = "0.15.1"
 twilight-http = "0.15.1"
 twilight-model = "0.15.1"
-twilight-util = { version = "0.15.1", features = ["full"] }
+twilight-util = {version = "0.15.1", features = ["full"]}

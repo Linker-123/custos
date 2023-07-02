@@ -1,2 +1,3 @@
 [workspace]
 members = ["custos_bot", "custos_script"]
+resolver = "2"

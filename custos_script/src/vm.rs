@@ -1,11 +1,8 @@
-use std::collections::{HashMap, VecDeque};
-
-use log::debug;
-
 use crate::{
     bytecode::{CallFrame, Constant, Function, Instruction},
     prelude::BuiltInMethod,
 };
+use std::collections::{HashMap, VecDeque};
 
 pub enum CallResult {
     Ok,
@@ -13,7 +10,7 @@ pub enum CallResult {
     Err,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct VirtualMachine {
     stack: VecDeque<Constant>,
     globals: HashMap<String, Constant>,
@@ -56,17 +53,17 @@ impl VirtualMachine {
         }
     }
 
-    fn error(&self, message: &str) -> ! {
+    fn error(&self, message: &str) -> String {
         let frame = self.frames.last().unwrap();
         self.error_ip(message, frame.ip)
     }
 
-    fn error_ip(&self, message: &str, ip: usize) -> ! {
+    fn error_ip(&self, message: &str, ip: usize) -> String {
         let frame = self.frames.last().unwrap();
         let ins = &frame.function.chunk[ip];
         let line = &frame.function.chunk.lines[ip];
 
-        panic!(
+        format!(
             "VMerror: {message} at line '{}' on instruction '{:?}'",
             line, ins
         )
@@ -99,19 +96,19 @@ impl VirtualMachine {
                     ));
                 }
 
+                println!("Arg count: {}", arg_count);
+
                 let removed = self
                     .stack
-                    .range(self.stack.len() - arg_count as usize - 1..)
+                    .range(self.stack.len() - arg_count as usize..)
                     .map(|c| c.to_owned())
                     .collect::<Vec<Constant>>();
 
-                println!(
-                    "Built-in method called: {} at address {:?}",
-                    func.name, func.function
-                );
+                println!("Built-in method called: {}", func.name);
 
-                let function = func.function;
-                let result = function(removed);
+                // let result = func.func(removed);
+                let callable = func.func;
+                let result = callable(removed);
 
                 // println!(
                 //     "result: {:#?}, stack before: {}, stack after: {}",
@@ -139,9 +136,9 @@ impl VirtualMachine {
             .expect("Failed to peek");
     }
 
-    pub fn interpret(&mut self) {
+    pub fn interpret(&mut self) -> Option<String> {
         loop {
-            let mut frame = self.frames.last().unwrap();
+            let frame = self.frames.last().unwrap();
             let ins = &frame.function.chunk[frame.ip];
             let line = &frame.function.chunk.lines[frame.ip];
 
@@ -156,23 +153,36 @@ impl VirtualMachine {
                     let b = self.stack.pop_back().unwrap();
                     let a = self.stack.pop_back().unwrap();
 
-                    let rhs = match b {
-                        Constant::Number(number) => number,
-                        _ => self.error(&format!(
-                            "cannot add two non-numbers, right-hand side is not a number but a {}",
-                            b.get_pretty_type()
-                        )),
-                    };
+                    if matches!(a, Constant::String(_)) || matches!(b, Constant::String(_)) {
+                        let mut a = a.get_string();
+                        let b = b.get_string();
 
-                    let lhs = match a {
-                        Constant::Number(number) => number,
-                        _ => self.error(&format!(
-                            "cannot add two non-numbers, left-hand side is not a number but a {}",
-                            a.get_pretty_type()
-                        )),
-                    };
+                        a.push_str(&b);
 
-                    self.stack.push_back(Constant::Number(lhs + rhs));
+                        self.stack.push_back(Constant::String(a));
+                    } else {
+                        let rhs = match b {
+                            Constant::Number(number) => number,
+                            _ => {
+                                return Some(self.error(&format!(
+                                "cannot add two non-numbers, right-hand side is not a number but a {}",
+                                b.get_pretty_type()
+                            )))
+                            }
+                        };
+
+                        let lhs = match a {
+                            Constant::Number(number) => number,
+                            _ => {
+                                return Some(self.error(&format!(
+                                "cannot add two non-numbers, left-hand side is not a number but a {}",
+                                a.get_pretty_type()
+                            )))
+                            }
+                        };
+
+                        self.stack.push_back(Constant::Number(lhs + rhs));
+                    }
                 }
                 Instruction::Subtract => {
                     let b = self.stack.pop_back().unwrap();
@@ -180,18 +190,22 @@ impl VirtualMachine {
 
                     let rhs = match b {
                         Constant::Number(number) => number,
-                        _ => self.error(&format!(
+                        _ => {
+                            return Some(self.error(&format!(
                             "cannot add two non-numbers, right-hand side is not a number but a {}",
                             b.get_pretty_type()
-                        )),
+                        )))
+                        }
                     };
 
                     let lhs = match a {
                         Constant::Number(number) => number,
-                        _ => self.error(&format!(
+                        _ => {
+                            return Some(self.error(&format!(
                             "cannot add two non-numbers, left-hand side is not a number but a {}",
                             a.get_pretty_type()
-                        )),
+                        )))
+                        }
                     };
 
                     self.stack.push_back(Constant::Number(lhs - rhs));
@@ -203,22 +217,26 @@ impl VirtualMachine {
                     let rhs = match b {
                         Constant::Number(number) => {
                             if number == 0.0 {
-                                self.error("cannot divide a number by zero")
+                                return Some(self.error("cannot divide a number by zero"));
                             }
                             number
                         }
-                        _ => self.error(&format!(
+                        _ => {
+                            return Some(self.error(&format!(
                             "cannot add two non-numbers, right-hand side is not a number but a {}",
                             b.get_pretty_type()
-                        )),
+                        )))
+                        }
                     };
 
                     let lhs = match a {
                         Constant::Number(number) => number,
-                        _ => self.error(&format!(
+                        _ => {
+                            return Some(self.error(&format!(
                             "cannot add two non-numbers, left-hand side is not a number but a {}",
                             a.get_pretty_type()
-                        )),
+                        )))
+                        }
                     };
 
                     self.stack.push_back(Constant::Number(lhs / rhs));
@@ -230,22 +248,26 @@ impl VirtualMachine {
                     let rhs = match b {
                         Constant::Number(number) => {
                             if number == 0.0 {
-                                self.error("cannot divide a number by zero")
+                                return Some(self.error("cannot divide a number by zero"));
                             }
                             number
                         }
-                        _ => self.error(&format!(
+                        _ => {
+                            return Some(self.error(&format!(
                             "cannot add two non-numbers, right-hand side is not a number but a {}",
                             b.get_pretty_type()
-                        )),
+                        )))
+                        }
                     };
 
                     let lhs = match a {
                         Constant::Number(number) => number,
-                        _ => self.error(&format!(
+                        _ => {
+                            return Some(self.error(&format!(
                             "cannot add two non-numbers, left-hand side is not a number but a {}",
                             a.get_pretty_type()
-                        )),
+                        )))
+                        }
                     };
 
                     self.stack.push_back(Constant::Number(lhs * rhs));
@@ -254,7 +276,7 @@ impl VirtualMachine {
                     if let Some(global) = self.globals.get(name) {
                         self.stack.push_back(global.clone());
                     } else {
-                        self.error(&format!("no global with name '{}' exists", name))
+                        return Some(self.error(&format!("no global with name '{}' exists", name)));
                     }
                 }
                 Instruction::DefineGlobal(name) => {
@@ -272,20 +294,20 @@ impl VirtualMachine {
                 Instruction::GetLocal(index) => {
                     let index = self.frames.last().unwrap().slot_offset + *index;
 
-                    self.stack.push_back(
-                        self.stack
-                            .get(index)
-                            .unwrap_or_else(|| self.error("no such local variable in the scope"))
-                            .to_owned(),
-                    );
+                    self.stack.push_back(match self.stack.get(index) {
+                        Some(d) => d.to_owned(),
+                        None => return Some(self.error("no such local variable in the scope")),
+                    });
                 }
                 Instruction::SetLocal(index) => {
                     let index = self.frames.last().unwrap().slot_offset + *index;
 
-                    let value = self
-                        .stack
-                        .pop_back()
-                        .unwrap_or_else(|| self.error("no value for local variable to set"));
+                    let value = match self.stack.pop_back() {
+                        Some(d) => d,
+                        None => {
+                            return Some(self.error("no value for local variable to set"));
+                        }
+                    };
                     let local = self.stack.get_mut(index);
 
                     if let Some(local) = local {
@@ -368,13 +390,12 @@ impl VirtualMachine {
                     self.frames.pop();
 
                     if self.frames.is_empty() {
-                        return;
+                        return None;
                     }
 
                     self.stack.truncate(offset);
                     self.stack.push_back(ret_val);
                 }
-                _ => unimplemented!(),
             }
 
             self.frames.last_mut().unwrap().ip += 1;

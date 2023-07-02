@@ -1,12 +1,22 @@
 use anyhow::Result;
+use custos_script::tokenizer::Tokenizer;
+use custos_script::{
+    bytecode::{BuiltInMethod, Constant, Function, FunctionType, Instruction},
+    compiler::Compiler,
+    parser::Parser,
+    vm::VirtualMachine,
+};
+use std::rc::Rc;
 use std::sync::Arc;
 use twilight_gateway::{stream::ShardRef, Event};
+
 use twilight_model::{
     application::interaction::{InteractionData, InteractionType},
     gateway::payload::{
         incoming::{GuildCreate, MemberChunk},
         outgoing::RequestGuildMembers,
     },
+    id::Id,
 };
 
 use crate::{
@@ -28,7 +38,88 @@ pub async fn process_event(
         Event::GuildCreate(guild) => on_guild_create(shard, guild).await?,
         Event::MemberChunk(chunk) => on_member_chunk(shard, chunk, context).await?,
         Event::MessageCreate(message) => {
-            tracing::info!("Message content: {content}", content = message.content);
+            // tracing::info!("Message content: {content}", content = message.content);
+
+            if message.content.starts_with("!eval ")
+                && (message.author.id == Id::new(1072158687407378496)
+                    || message.author.id == Id::new(778518819055861761))
+            {
+                let mut content = message.content.strip_prefix("!eval ").unwrap();
+                content = content.trim();
+
+                let (args, mut content) = content.split_once("```").unwrap();
+                let args = args
+                    .split_whitespace()
+                    .map(String::from)
+                    .collect::<Vec<String>>();
+
+                content = content.strip_prefix("```").unwrap_or(content);
+                content = content.strip_suffix("```").unwrap_or(content);
+
+                let content = content.to_string();
+                let cid = message.channel_id;
+                let http_client = context.http_sync.clone();
+                rayon::spawn(move || {
+                    let http_client = Rc::new(http_client);
+                    let tokenizer = Tokenizer::new(&content);
+                    let mut parser = match Parser::new(tokenizer, &content) {
+                        Ok(p) => p,
+                        Err(e) => {
+                            http_client.create_message(cid, &format!("```{}```", e));
+                            return;
+                        }
+                    };
+                    match parser.parse() {
+                        Ok(_) => (),
+                        Err(e) => {
+                            http_client.create_message(cid, &format!("```{}```", e));
+                            return;
+                        }
+                    };
+
+                    let compiler = Compiler::default();
+                    let mut chunk = compiler.compile_non_boxed(parser.declarations);
+
+                    chunk.add_instruction(Instruction::GetGlobal("main".to_string()), 1);
+                    chunk.add_instruction(Instruction::Call(0), 1);
+                    chunk.add_instruction(Instruction::Return, 1);
+
+                    let mut vm = VirtualMachine::new(Function {
+                        arity: 0,
+                        chunk,
+                        name: "".to_owned(),
+                        kind: FunctionType::Script,
+                    });
+
+                    let http_clone = Rc::clone(&http_client);
+                    vm.define_built_in_fn(BuiltInMethod::new(
+                        "send".to_owned(),
+                        Rc::new(move |args| {
+                            if let Some(Constant::String(message_content)) = args.get(0) {
+                                let result = http_clone.create_message(cid, message_content);
+                                return Constant::String(result.id);
+                            }
+
+                            Constant::None
+                        }),
+                        0u8,
+                    ));
+
+                    vm.define_built_in_fn(BuiltInMethod::new(
+                        "get_args".to_owned(),
+                        Rc::new(move |_| {
+                            let _clone = args.clone();
+
+                            Constant::None
+                        }),
+                        0,
+                    ));
+
+                    if let Some(err) = vm.interpret() {
+                        http_client.create_message(cid, &format!("```{}```", err));
+                    }
+                });
+            }
         }
         Event::MemberAdd(member_add) => {
             plugins::welcomer::on_member_add(context, Box::clone(member_add).into()).await?;

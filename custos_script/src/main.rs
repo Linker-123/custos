@@ -1,86 +1,52 @@
+use std::rc::Rc;
+
 use custos_script::{
+    bytecode,
     compiler::Compiler,
     parser::Parser,
-    prelude::{BuiltInMethod, Constant, Function, FunctionType, Instruction},
+    prelude::{BuiltInMethod, Constant, FunctionType, Instruction},
     tokenizer::Tokenizer,
     vm::VirtualMachine,
 };
 
 fn main() {
-    env_logger::init();
-    // THE FOLLOWING IS EQUIVALENT TO:
-    // if (2 == 2) { let then_block = 20 } else { let else_block = 10 }
-    // const TIMES: u16 = 20000;
-    // let mut times: Vec<Duration> = Vec::with_capacity(TIMES as usize);
+    let content = String::from(
+        "
 
-    // for _ in 0..TIMES {
-    //     let mut script_chunk = Chunk::default();
-    //     // let mut manager = VariableManager::default();
 
-    //     script_chunk.add_instruction(Instruction::Constant(Constant::Number(2.)), 1);
-    //     script_chunk.add_instruction(Instruction::Constant(Constant::Number(2.)), 1);
-    //     script_chunk.add_instruction(Instruction::Equal, 1);
+        
+    func xd:
+        send(\"ok.\");
+    end
 
-    //     script_chunk.add_instruction(Instruction::JumpIfFalse(1), 1);
-    //     script_chunk.add_instruction(Instruction::Pop, 1); // Pop the comparing expression
+    func main:
+        xd();
+    end",
+    );
 
-    //     // this is incorrect in a real case scenario, but do i care?
-    //     script_chunk.add_instruction(Instruction::Constant(Constant::Number(20.)), 1);
-    //     script_chunk.add_instruction(Instruction::DefineGlobal("then_block".to_owned()), 1);
-
-    //     // else jump
-    //     script_chunk.add_instruction(Instruction::Jump(3), 1);
-
-    //     let conditional_jump_ins = &mut script_chunk[3];
-    //     *conditional_jump_ins = Instruction::JumpIfFalse(4); // 4 instructions after JumpIfFalse
-
-    //     script_chunk.add_instruction(Instruction::Pop, 1);
-
-    //     script_chunk.add_instruction(Instruction::Constant(Constant::Number(10.)), 1);
-    //     script_chunk.add_instruction(Instruction::DefineGlobal("else_block".to_owned()), 1);
-
-    //     script_chunk.add_instruction(Instruction::Constant(Constant::None), 1);
-    //     script_chunk.add_instruction(Instruction::Return, 2);
-
-    //     let start = Instant::now();
-
-    //     times.push(start.elapsed());
-    // }
-
-    // let mut sum: u128 = 0;
-    // for time in &times {
-    //     sum += time.as_micros();
-    // }
-
-    // println!(
-    //     "Average {:.2?}",
-    //     Duration::from_micros((sum / (times.len() as u128)) as u64)
-    // )
-
-    let binding = "
-        func sum(a, b, c):
-            ret a + b + c
-        end
-
-        func main:
-            var x = sum(1, 2, 3)
-
-            print(x)
-        end
-    "
-    .to_owned();
-    let tokenizer = Tokenizer::new(&binding);
-    let mut parser = Parser::new(tokenizer, &binding);
-    parser.parse();
+    let tokenizer = Tokenizer::new(&content);
+    let mut parser = match Parser::new(tokenizer, &content) {
+        Ok(p) => p,
+        Err(e) => {
+            panic!("{e}");
+        }
+    };
+    match parser.parse() {
+        Ok(_) => (),
+        Err(e) => {
+            panic!("{e}");
+        }
+    };
 
     let compiler = Compiler::default();
+    println!("declarations: {:#?}", parser.declarations);
     let mut chunk = compiler.compile_non_boxed(parser.declarations);
 
     chunk.add_instruction(Instruction::GetGlobal("main".to_string()), 1);
     chunk.add_instruction(Instruction::Call(0), 1);
     chunk.add_instruction(Instruction::Return, 1);
-    
-    let mut vm = VirtualMachine::new(Function {
+
+    let mut vm = VirtualMachine::new(bytecode::Function {
         arity: 0,
         chunk,
         name: "".to_owned(),
@@ -88,15 +54,12 @@ fn main() {
     });
 
     vm.define_built_in_fn(BuiltInMethod::new(
-        "print".to_owned(),
-        |args| {
-            for arg in args {
-                print!("\n{} ", arg);
-            }
-            println!();
-            Constant::None
-        },
-        0u8,
+        "send".to_owned(),
+        Rc::new(move |_| Constant::None),
+        0
     ));
-    vm.interpret();
+
+    if let Some(err) = vm.interpret() {
+        panic!("{}", err)
+    }
 }
