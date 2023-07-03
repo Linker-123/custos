@@ -110,7 +110,11 @@ impl<'a> Parser<'a> {
             column,
             message,
             src,
-            " ".repeat(column - offset - len - 1),
+            " ".repeat(if column >= offset + len + 1 {
+                column - offset - len - 1
+            } else {
+                1
+            }),
             "~".repeat(len)
         )
     }
@@ -506,7 +510,7 @@ impl<'a> Parser<'a> {
 
     fn finish_call(&mut self, callee: Box<Node>) -> ParseResult<Box<Node>> {
         let mut arguments = Vec::with_capacity(12);
-        if !matches!(self, self.current, TokenKind::RightParen(_, _)) {
+        if !std::matches!(self.current, TokenKind::RightParen(_, _)) {
             loop {
                 arguments.push(*self.expr()?);
 
@@ -514,10 +518,17 @@ impl<'a> Parser<'a> {
                     break;
                 }
             }
-            // self.advance()?;
         }
+        
+        // println!("args: {:#?}", arguments);
+        println!("Current={:?}", self.current);
+        consume!(
+            self,
+            "Expected ')'",
+            self.current,
+            TokenKind::RightParen(_, _)
+        );
 
-        println!("Current: {:?}", self.current);
         Ok(Call::new_node(arguments, callee))
     }
 
@@ -529,7 +540,6 @@ impl<'a> Parser<'a> {
             self.current,
             TokenKind::RightBracket(_, _)
         );
-        self.advance()?;
 
         Ok(Subscript::new_node(index, value))
     }
