@@ -2,7 +2,10 @@ use crate::{
     bytecode::{CallFrame, Constant, Function, Instruction},
     prelude::BuiltInMethod,
 };
-use std::collections::{HashMap, VecDeque};
+use std::{
+    collections::{HashMap, VecDeque},
+    rc::Rc,
+};
 
 pub enum CallResult {
     Ok,
@@ -324,7 +327,7 @@ impl VirtualMachine {
                     let value = self.call_value(function, *arg_count);
 
                     match value {
-                        CallResult::Err => unimplemented!(),
+                        CallResult::Err => return Some(self.error("Cant call a non-function")),
                         CallResult::OkNative => {
                             // because native functions dont have RETURN
                             self.frames.last_mut().unwrap().ip += 1;
@@ -381,6 +384,47 @@ impl VirtualMachine {
                     let value = self.stack.pop_back().unwrap();
 
                     self.stack.push_back(Constant::Bool(value.is_falsey()));
+                }
+                Instruction::IndexInto => {
+                    let index = self.stack.pop_back().unwrap();
+                    let array_value = self.stack.pop_back().unwrap();
+
+                    let index = match index {
+                        Constant::Number(n) => n as usize,
+                        _ => return Some(self.error("Invalid index")),
+                    };
+
+                    if let Constant::String(s) = array_value {
+                        let character = s.chars().nth(index);
+                        self.stack.push_back(match character {
+                            Some(c) => Constant::String(String::from(c)),
+                            None => Constant::None,
+                        });
+                    } else if let Constant::Array(array) = array_value {
+                        let element = array.get(index);
+
+                        self.stack.push_back(match element {
+                            Some(v) => v.to_owned(),
+                            None => Constant::None,
+                        });
+                    } else {
+                        return Some(self.error(&format!(
+                            "Can only index into a string or array, got: {}",
+                            array_value.get_pretty_type()
+                        )));
+                    }
+
+                    // println!("Indexing: {:?}, into array: {:?}", index, array_value);
+                }
+                Instruction::ArrayLiteral(offset) => {
+                    let mut values = Vec::new();
+
+                    for _ in 0..*offset {
+                        values.push(self.stack.pop_back().unwrap());
+                    }
+
+                    values.reverse();
+                    self.stack.push_back(Constant::Array(Rc::new(values)));
                 }
                 Instruction::Return => {
                     // self.stack.truncate(self.frames.last().unwrap().slot_offset);

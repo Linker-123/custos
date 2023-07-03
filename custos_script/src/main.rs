@@ -12,16 +12,10 @@ use custos_script::{
 fn main() {
     let content = String::from(
         "
-
-
-        
-    func xd:
-        send(\"ok.\");
-    end
-
-    func main:
-        xd();
-    end",
+        func main:
+            send(get_args()[0]);
+        end
+        "
     );
 
     let tokenizer = Tokenizer::new(&content);

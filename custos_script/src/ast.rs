@@ -15,7 +15,7 @@ pub enum Node {
     Number(String, usize, usize),
     StringLiteral(String, usize, usize),
     BoolLiteral(bool, usize, usize),
-    // ArrayLiteral(Vec<Node>, usize, usize),
+    ArrayLiteral(Vec<Node>, usize, usize),
     VarGet(String, usize, usize),
     Binary(Binary),
     Function(Function),
@@ -31,6 +31,7 @@ pub enum Node {
     Block(Block),
     ExprStmt(ExprStmt),
     Call(Call),
+    Subscript(Subscript),
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -142,6 +143,18 @@ pub struct Call {
 impl Call {
     pub fn new_node(args: Vec<Node>, callee: Box<Node>) -> Box<Node> {
         Box::new(Node::Call(Call { args, callee }))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Subscript {
+    pub index: Box<Node>,
+    pub value: Box<Node>,
+}
+
+impl Subscript {
+    pub fn new_node(index: Box<Node>, value: Box<Node>) -> Box<Node> {
+        Box::new(Node::Subscript(Subscript { index, value }))
     }
 }
 

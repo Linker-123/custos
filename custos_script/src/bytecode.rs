@@ -7,7 +7,7 @@ pub enum Constant {
     String(String),
     Function(Function),
     BuiltInMethod(BuiltInMethod),
-    // Array(Vec<Constant>),
+    Array(Rc<Vec<Constant>>),
     None,
 }
 
@@ -20,6 +20,7 @@ impl Constant {
             Constant::Function(f) => format!("fn <'{}' {}>", f.name, f.arity),
             Constant::None => "none".to_owned(),
             Constant::BuiltInMethod(f) => format!("fn <built-in '{}' {}>", f.name, f.arity),
+            Constant::Array(arr) => format!("array <{}>", arr.len()),
         }
     }
 
@@ -39,6 +40,7 @@ impl Constant {
             Constant::None => "none".to_string(),
             Constant::Function(f) => format!("fn <'{}' {}>", f.name, f.arity),
             Constant::BuiltInMethod(f) => format!("fn <built-in '{}' {}>", f.name, f.arity),
+            Constant::Array(arr) => format!("array <{}>", arr.len()),
         }
     }
 }
@@ -54,6 +56,7 @@ impl std::fmt::Display for Constant {
             Constant::BuiltInMethod(func) => {
                 write!(f, "fn <built-in '{}' {}>", func.name, func.arity)
             }
+            Constant::Array(arr) => write!(f, "array <{}>", arr.len()),
         }
     }
 }
@@ -198,6 +201,8 @@ pub enum Instruction {
     Not,
     JumpIfFalse(u16),
     Jump(u16),
+    IndexInto,
+    ArrayLiteral(usize),
     Return,
 }
 

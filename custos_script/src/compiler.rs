@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, fmt::Arguments, rc::Rc};
 
 use crate::{
     ast::{BinaryOp, Node},
@@ -25,6 +25,15 @@ impl Compiler {
                 Instruction::Constant(Constant::Number(number.parse::<f64>().unwrap())),
                 line,
             ),
+            Node::ArrayLiteral(values, line, _) => {
+                let value_size = values.len();
+                for val in values {
+                    self.compile_node(val);
+                }
+
+                self.chunk
+                    .add_instruction(Instruction::ArrayLiteral(value_size), line);
+            }
             Node::Function(func) => {
                 self.var_manager.borrow_mut().start_scope();
                 let compiler = Compiler::new_with_manager(Rc::clone(&self.var_manager));
@@ -118,6 +127,12 @@ impl Compiler {
             Node::StringLiteral(s, line, _) => self
                 .chunk
                 .add_instruction(Instruction::Constant(Constant::String(s)), line),
+            Node::Subscript(susbcript) => {
+                self.compile_node(*susbcript.value);
+                self.compile_node(*susbcript.index);
+                self.chunk.add_instruction(Instruction::IndexInto, 0);
+            }
+            
             _ => {
                 println!("{node:#?}");
                 unimplemented!()

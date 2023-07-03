@@ -60,6 +60,12 @@ pub async fn process_event(
                 let cid = message.channel_id;
                 let http_client = context.http_sync.clone();
                 rayon::spawn(move || {
+                    let args = Rc::new(
+                        args.into_iter()
+                            .map(Constant::String)
+                            .collect::<Vec<Constant>>(),
+                    );
+
                     let http_client = Rc::new(http_client);
                     let tokenizer = Tokenizer::new(&content);
                     let mut parser = match Parser::new(tokenizer, &content) {
@@ -105,12 +111,13 @@ pub async fn process_event(
                         0u8,
                     ));
 
+                    // let clone = Rc::clone(&args);
+                    let clone_1 = Rc::clone(&args);
                     vm.define_built_in_fn(BuiltInMethod::new(
                         "get_args".to_owned(),
                         Rc::new(move |_| {
-                            let _clone = args.clone();
-
-                            Constant::None
+                            let data = Rc::clone(&clone_1);
+                            Constant::Array(data)
                         }),
                         0,
                     ));

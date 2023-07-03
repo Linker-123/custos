@@ -1,7 +1,7 @@
 use crate::{
     ast::{
         Assign, Binary, BinaryOp, Block, Call, ExprStmt, For, Function, FunctionArg, Grouping, If,
-        Logical, LogicalOp, Node, Ret, Unary, UnaryOp, VarDecl,
+        Logical, LogicalOp, Node, Ret, Subscript, Unary, UnaryOp, VarDecl,
     },
     tokenizer::{get_tok_len, get_tok_loc, TokenKind, Tokenizer},
 };
@@ -37,8 +37,6 @@ pub struct Parser<'a> {
 impl<'a> Parser<'a> {
     pub fn new(mut tokenizer: Tokenizer<'a>, source: &'a String) -> ParseResult<Parser<'a>> {
         let current = tokenizer.next().unwrap()?;
-
-        println!("{:#?}", current);
         Ok(Parser {
             tokenizer,
             current,
@@ -317,7 +315,7 @@ impl<'a> Parser<'a> {
         let expr = self.expr()?;
         consume!(
             self,
-            "Expected a ';' or a new line.",
+            "Expected a ';' or a new line. asdasdas",
             self.current,
             TokenKind::ExprDelimiter(_, _)
         );
@@ -477,7 +475,20 @@ impl<'a> Parser<'a> {
             return Ok(Unary::new_node(uop, loc, expr));
         }
 
-        self.call()
+        self.subscript()
+    }
+
+    fn subscript(&mut self) -> ParseResult<Box<Node>> {
+        let mut expr = self.call()?;
+        loop {
+            if matches!(self, self.current, TokenKind::LeftBracket(_, _)) {
+                expr = self.finish_bracket(expr)?;
+            } else {
+                break;
+            }
+        }
+
+        Ok(expr)
     }
 
     fn call(&mut self) -> ParseResult<Box<Node>> {
@@ -505,9 +516,21 @@ impl<'a> Parser<'a> {
             }
         }
 
+        // self.advance()?;
+        Ok(Call::new_node(arguments, callee))
+    }
+
+    fn finish_bracket(&mut self, value: Box<Node>) -> ParseResult<Box<Node>> {
+        let index = self.expr()?;
+        consume!(
+            self,
+            "Expected ']'",
+            self.current,
+            TokenKind::RightBracket(_, _)
+        );
         self.advance()?;
 
-        Ok(Call::new_node(arguments, callee))
+        Ok(Subscript::new_node(index, value))
     }
 
     fn primary(&mut self) -> ParseResult<Box<Node>> {
@@ -530,6 +553,21 @@ impl<'a> Parser<'a> {
                 );
                 return Ok(Grouping::new_node(expr));
             }
+            TokenKind::LeftBracket(line, column) => {
+                self.advance()?;
+
+                let mut arguments = Vec::with_capacity(12);
+                if !matches!(self, self.current, TokenKind::RightBracket(_, _)) {
+                    loop {
+                        arguments.push(*self.expr()?);
+
+                        if !matches!(self, self.current, TokenKind::Comma(_, _)) {
+                            break;
+                        }
+                    }
+                }
+                Node::ArrayLiteral(arguments, line, column)
+            }
             _ => {
                 return Err(self.error("unexpected token", &self.current));
             }
@@ -541,8 +579,6 @@ impl<'a> Parser<'a> {
 
     fn advance(&mut self) -> ParseResult<()> {
         let next_token = self.tokenizer.next();
-
-        println!("next token: {:#?}", next_token);
         self.current = next_token.unwrap_or(Ok(TokenKind::Eof))?;
         Ok(())
     }
