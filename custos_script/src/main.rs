@@ -12,10 +12,14 @@ use custos_script::{
 fn main() {
     let content = String::from(
         "
-        func main:
-            send(get_args()[0]);
+        func sub(a, b):
+            ret -(a - b);
         end
-        "
+        
+        func main:
+            send(\"\" + sub(1, 5));
+        end
+        ",
     );
 
     let tokenizer = Tokenizer::new(&content);
@@ -50,7 +54,7 @@ fn main() {
     vm.define_built_in_fn(BuiltInMethod::new(
         "send".to_owned(),
         Rc::new(move |_| Constant::None),
-        0
+        0,
     ));
 
     if let Some(err) = vm.interpret() {

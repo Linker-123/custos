@@ -368,7 +368,6 @@ impl<'a> Iterator for Tokenizer<'a> {
             return Some(Ok(self.number()));
         }
 
-
         Some(Ok(match c {
             '(' => TokenKind::LeftParen(self.line, self.column),
             ')' => TokenKind::RightParen(self.line, self.column),

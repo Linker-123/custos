@@ -385,6 +385,19 @@ impl VirtualMachine {
 
                     self.stack.push_back(Constant::Bool(value.is_falsey()));
                 }
+                Instruction::Negate => {
+                    let value = self.stack.pop_back().unwrap();
+
+                    match value {
+                        Constant::Number(n) => self.stack.push_back(Constant::Number(-n)),
+                        _ => {
+                            return Some(self.error(&format!(
+                                "Can only negate a number, got: {}",
+                                value.get_pretty_type()
+                            )))
+                        }
+                    }
+                }
                 Instruction::IndexInto => {
                     let index = self.stack.pop_back().unwrap();
                     let array_value = self.stack.pop_back().unwrap();

@@ -315,7 +315,7 @@ impl<'a> Parser<'a> {
         let expr = self.expr()?;
         consume!(
             self,
-            "Expected a ';' or a new line. asdasdas",
+            "Expected a ';' or a new line.",
             self.current,
             TokenKind::ExprDelimiter(_, _)
         );
@@ -514,9 +514,10 @@ impl<'a> Parser<'a> {
                     break;
                 }
             }
+            // self.advance()?;
         }
 
-        // self.advance()?;
+        println!("Current: {:?}", self.current);
         Ok(Call::new_node(arguments, callee))
     }
 

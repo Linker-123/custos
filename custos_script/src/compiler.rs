@@ -1,7 +1,7 @@
 use std::{cell::RefCell, fmt::Arguments, rc::Rc};
 
 use crate::{
-    ast::{BinaryOp, Node},
+    ast::{BinaryOp, Node, UnaryOp},
     prelude::{Chunk, Constant, Function, FunctionType, Instruction, VariableManager},
 };
 
@@ -132,11 +132,31 @@ impl Compiler {
                 self.compile_node(*susbcript.index);
                 self.chunk.add_instruction(Instruction::IndexInto, 0);
             }
-            
-            _ => {
-                println!("{node:#?}");
-                unimplemented!()
+            Node::BoolLiteral(value, line, _) => self
+                .chunk
+                .add_instruction(Instruction::Constant(Constant::Bool(value)), line),
+            Node::Grouping(group) => self.compile_node(*group.expr),
+            Node::Unary(unary) => {
+                self.compile_node(*unary.expr);
+                match unary.op {
+                    UnaryOp::Negate => {
+                        self.chunk
+                            .add_instruction(Instruction::Negate, unary.op_loc.0);
+                    }
+                    UnaryOp::Not => {
+                        self.chunk.add_instruction(Instruction::Not, unary.op_loc.0);
+                    }
+                    _ => unreachable!(),
+                }
             }
+            Node::Logical(_) => todo!(),
+            Node::Assign(_) => todo!(),
+            Node::For(_) => todo!(),
+            Node::If(_) => todo!(),
+            // _ => {
+            //     println!("{node:#?}");
+            //     unimplemented!()
+            // }
         }
     }
 

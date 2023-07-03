@@ -198,6 +198,7 @@ pub enum Instruction {
     Lesser,
     GreaterEq,
     LesserEq,
+    Negate,
     Not,
     JumpIfFalse(u16),
     Jump(u16),
