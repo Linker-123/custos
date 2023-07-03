@@ -25,6 +25,9 @@ impl Compiler {
                 Instruction::Constant(Constant::Number(number.parse::<f64>().unwrap())),
                 line,
             ),
+            Node::NoneLiteral(line, _) => self
+                .chunk
+                .add_instruction(Instruction::Constant(Constant::None), line),
             Node::ArrayLiteral(values, line, _) => {
                 let value_size = values.len();
                 for val in values {
@@ -151,12 +154,34 @@ impl Compiler {
             }
             Node::Logical(_) => todo!(),
             Node::Assign(_) => todo!(),
-            Node::For(_) => todo!(),
-            Node::If(_) => todo!(),
-            // _ => {
-            //     println!("{node:#?}");
-            //     unimplemented!()
-            // }
+            Node::For(for_stmt) => {
+                unimplemented!();
+                let loop_start = self.chunk.code.len();
+                let exit_jump = -1;
+
+                self.compile_node(*for_stmt.body);
+                self.emit_loop(loop_start);
+            },
+            Node::If(if_stmt) => {
+                self.compile_node(*if_stmt.condition);
+
+                // TODO: actual lines
+                let then_jump = self.chunk.emit_jump(Instruction::JumpIfFalse(0), 1);
+                self.chunk.add_instruction(Instruction::Pop, 1);
+                self.compile_node(*if_stmt.then_block);
+
+                let else_jump = self.chunk.emit_jump(Instruction::Jump(0), 1);
+                self.patch_jump(then_jump);
+                self.chunk.add_instruction(Instruction::Pop, 1);
+
+                if let Some(else_cond) = if_stmt.else_block {
+                    self.compile_node(*else_cond);
+                }
+                self.patch_jump(else_jump);
+            } // _ => {
+              //     println!("{node:#?}");
+              //     unimplemented!()
+              // }
         }
     }
 
@@ -176,6 +201,15 @@ impl Compiler {
             }
         };
         self.chunk
+    }
+
+    fn patch_jump(&mut self, offset: usize) {
+        let jump = self.chunk.code.len() - offset;
+        self.chunk.code[offset] = Instruction::JumpIfFalse(jump as u16);
+    }
+
+    fn emit_loop(&mut self, offset: usize) {
+        
     }
 
     pub fn compile_non_boxed(mut self, declarations: Vec<Node>) -> Chunk {

@@ -1,8 +1,7 @@
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
-    // LeftBrace(usize, usize),
-    // RightBrace(usize, usize),
-    End(usize, usize),
+    LeftBrace(usize, usize),
+    RightBrace(usize, usize),
     LeftParen(usize, usize),
     RightParen(usize, usize),
     LeftBracket(usize, usize),
@@ -43,15 +42,15 @@ pub enum TokenKind {
     Else(usize, usize),
     Var(usize, usize),
     ExprDelimiter(usize, usize),
+    None(usize, usize),
     // GetPtr(usize, usize),
     Eof,
 }
 
 pub fn get_tok_loc(token: &TokenKind) -> Result<(usize, usize), String> {
     Ok(match token {
-        // TokenKind::LeftBrace(a, b) => (*a, *b),
-        // TokenKind::RightBrace(a, b) => (*a, *b)
-        TokenKind::End(a, b) => (*a, *b),
+        TokenKind::LeftBrace(a, b) => (*a, *b),
+        TokenKind::RightBrace(a, b) => (*a, *b),
         TokenKind::LeftParen(a, b) => (*a, *b),
         TokenKind::RightParen(a, b) => (*a, *b),
         // TokenKind::IntLiteral(_, a, b) => (*a, *b),
@@ -93,14 +92,15 @@ pub fn get_tok_loc(token: &TokenKind) -> Result<(usize, usize), String> {
         // TokenKind::GetPtr(a, b) => (*a, *b),
         TokenKind::LeftBracket(a, b) => (*a, *b),
         TokenKind::RightBracket(a, b) => (*a, *b),
+        TokenKind::None(a, b) => (*a, *b),
         TokenKind::Eof => return Err("Unsupported token".to_owned()),
     })
 }
 
 pub fn get_tok_len(token: &TokenKind) -> usize {
     match token {
-        TokenKind::End(_, _) => 3,
-        // TokenKind::LeftBrace(_, _) => 1,
+        TokenKind::LeftBrace(_, _) => 1,
+        TokenKind::RightBrace(_, _) => 3,
         // TokenKind::RightBrace(_, _) => 1,
         TokenKind::LeftParen(_, _) => 1,
         TokenKind::RightParen(_, _) => 1,
@@ -143,6 +143,7 @@ pub fn get_tok_len(token: &TokenKind) -> usize {
         // TokenKind::GetPtr(_, _) => 1,
         TokenKind::LeftBracket(_, _) => 1,
         TokenKind::RightBracket(_, _) => 1,
+        TokenKind::None(_, _) => 4,
         TokenKind::Eof => 0,
     }
 }
@@ -233,7 +234,7 @@ impl<'a> Tokenizer<'a> {
                 None => return,
             };
             match c {
-                ' ' | '\r' | '\t' => {
+                ' ' | '\r' | '\t' | '\n' => {
                     self.advance();
                 }
                 '/' => {
@@ -322,7 +323,7 @@ impl<'a> Tokenizer<'a> {
             "if" => return TokenKind::If(self.line, self.column),
             "else" => return TokenKind::Else(self.line, self.column),
             "var" => return TokenKind::Var(self.line, self.column),
-            "end" => return TokenKind::End(self.line, self.column),
+            "none" => return TokenKind::None(self.line, self.column),
             _ => (),
         }
 
@@ -371,8 +372,8 @@ impl<'a> Iterator for Tokenizer<'a> {
         Some(Ok(match c {
             '(' => TokenKind::LeftParen(self.line, self.column),
             ')' => TokenKind::RightParen(self.line, self.column),
-            // '{' => (TokenKind::LeftBrace(self.line, self.column)),
-            // '}' => (TokenKind::RightBrace(self.line, self.column)),
+            '{' => TokenKind::LeftBrace(self.line, self.column),
+            '}' => TokenKind::RightBrace(self.line, self.column),
             '[' => TokenKind::LeftBracket(self.line, self.column),
             ']' => TokenKind::RightBracket(self.line, self.column),
             ':' => {
@@ -426,11 +427,11 @@ impl<'a> Iterator for Tokenizer<'a> {
             }
             '&' => TokenKind::And(self.line, self.column),
             ';' => TokenKind::ExprDelimiter(self.line, self.column),
-            '\n' => {
-                self.line += 1;
-                self.column = 1;
-                TokenKind::ExprDelimiter(self.line, self.column)
-            }
+            // '\n' => {
+            //     self.line += 1;
+            //     self.column = 1;
+            //     TokenKind::ExprDelimiter(self.line, self.column)
+            // }
             _ => return None,
         }))
     }

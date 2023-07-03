@@ -17,6 +17,33 @@ macro_rules! matches {
     };
 }
 
+macro_rules! matches_nows {
+    ($self: ident, $($tts:tt)*) => {
+        {
+            while !std::matches!($($tts)*) && std::matches!($self.current, TokenKind::ExprDelimiter(_, _)) {
+                $self.advance()?;
+            }
+            if std::matches!($($tts)*) {
+                $self.advance()?;
+                true
+            } else {
+                false
+            }
+        }
+    };
+}
+
+macro_rules! matches {
+    ($self: ident, $($tts:tt)*) => {
+        if std::matches!($($tts)*) {
+            $self.advance()?;
+            true
+        } else {
+            false
+        }
+    };
+}
+
 macro_rules! consume {
     ($self: ident, $msg: expr, $($tts:tt)*) => {{
         if !matches!($self, $($tts)*) {
@@ -84,7 +111,7 @@ impl<'a> Parser<'a> {
                 | TokenKind::For(_, _)
                 | TokenKind::If(_, _)
                 | TokenKind::Ret(_, _)
-                | TokenKind::End(_, _)
+                | TokenKind::RightBrace(_, _)
                 | TokenKind::Else(_, _) => return Ok(()),
                 _ => (),
             }
@@ -110,7 +137,7 @@ impl<'a> Parser<'a> {
             column,
             message,
             src,
-            " ".repeat(if column >= offset + len + 1 {
+            " ".repeat(if column > offset + len {
                 column - offset - len - 1
             } else {
                 1
@@ -137,7 +164,7 @@ impl<'a> Parser<'a> {
         }
 
         let loc = get_tok_loc(&self.current);
-        if matches!(self, self.current, TokenKind::Colon(_, _)) {
+        if matches_nows!(self, self.current, TokenKind::LeftBrace(_, _)) {
             let block = self.block()?;
             return Ok(Some(Block::new_node(block)));
         }
@@ -218,7 +245,12 @@ impl<'a> Parser<'a> {
             );
         }
 
-        consume!(self, "expected a ':'", self.current, TokenKind::Colon(_, _));
+        consume!(
+            self,
+            "expected a '{'",
+            self.current,
+            TokenKind::LeftBrace(_, _)
+        );
 
         let body = self.block()?;
         Ok(Function::new_node(
@@ -231,12 +263,22 @@ impl<'a> Parser<'a> {
 
     fn if_stmt(&mut self) -> ParseResult<Box<Node>> {
         let cond = self.expr()?;
-        consume!(self, "expected a ':'", self.current, TokenKind::Colon(_, _));
+        consume!(
+            self,
+            "expected a '{'",
+            self.current,
+            TokenKind::LeftBrace(_, _)
+        );
 
         let then_branch = self.block()?;
         let mut else_branch = None;
-        if matches!(self, self.current, TokenKind::Else(_, _)) {
-            consume!(self, "expected a ':'", self.current, TokenKind::Colon(_, _));
+        if matches_nows!(self, self.current, TokenKind::Else(_, _)) {
+            consume!(
+                self,
+                "expected a '{'",
+                self.current,
+                TokenKind::LeftBrace(_, _)
+            );
             else_branch = Some(Block::new_node(self.block()?));
         }
 
@@ -276,7 +318,7 @@ impl<'a> Parser<'a> {
         consume!(self, "expected 'in'", self.current, TokenKind::In(_, _));
         let target = self.expr()?;
 
-        consume!(self, "expected a ':'", self.current, TokenKind::Colon(_, _));
+        consume!(self, "expected a '{'", self.current, TokenKind::LeftBrace(_, _));
         let body = self.block()?;
         Ok(For::new_node(name, name_loc, target, Block::new_node(body)))
     }
@@ -284,7 +326,7 @@ impl<'a> Parser<'a> {
     fn block(&mut self) -> ParseResult<Vec<Node>> {
         let mut errors = Vec::new();
         let mut statements: Vec<Node> = Vec::with_capacity(10);
-        while !std::matches!(self.current, TokenKind::End(_, _)) && !self.is_at_end() {
+        while !std::matches!(self.current, TokenKind::RightBrace(_, _)) && !self.is_at_end() {
             let declaration = self.declaration();
             match declaration {
                 Ok(declaration) => {
@@ -307,9 +349,9 @@ impl<'a> Parser<'a> {
 
         consume!(
             self,
-            "Expected an 'end'",
+            "Expected an '}'",
             self.current,
-            TokenKind::End(_, _)
+            TokenKind::RightBrace(_, _)
         );
 
         Ok(statements)
@@ -519,7 +561,7 @@ impl<'a> Parser<'a> {
                 }
             }
         }
-        
+
         // println!("args: {:#?}", arguments);
         println!("Current={:?}", self.current);
         consume!(
@@ -549,6 +591,7 @@ impl<'a> Parser<'a> {
             TokenKind::True(line, column) => Node::BoolLiteral(true, line, column),
             TokenKind::False(line, column) => Node::BoolLiteral(false, line, column),
             TokenKind::NumberLiteral(integer, line, column) => Node::Number(integer, line, column),
+            TokenKind::None(line, column) => Node::NoneLiteral(line, column),
             TokenKind::StrLiteral(string, line, column) => {
                 Node::StringLiteral(string, line, column)
             }

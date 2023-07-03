@@ -12,13 +12,19 @@ use custos_script::{
 fn main() {
     let content = String::from(
         "
-        func sub(a, b):
-            ret -(a - b);
-        end
-        
-        func main:
-            send(\"\" + sub(1, 5));
-        end
+        func get_args {
+            ret [1, 2, 3];
+        }
+
+        func main {
+            var username = get_args()[0];
+            if username == none
+            {
+                ret 1;
+            } else {
+                send(\"Your name is: \" + username);
+            }
+        }
         ",
     );
 
@@ -37,7 +43,6 @@ fn main() {
     };
 
     let compiler = Compiler::default();
-    println!("declarations: {:#?}", parser.declarations);
     let mut chunk = compiler.compile_non_boxed(parser.declarations);
 
     chunk.add_instruction(Instruction::GetGlobal("main".to_string()), 1);

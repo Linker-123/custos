@@ -15,6 +15,7 @@ pub enum Node {
     Number(String, usize, usize),
     StringLiteral(String, usize, usize),
     BoolLiteral(bool, usize, usize),
+    NoneLiteral(usize, usize),
     ArrayLiteral(Vec<Node>, usize, usize),
     VarGet(String, usize, usize),
     Binary(Binary),

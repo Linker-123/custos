@@ -248,6 +248,11 @@ impl Chunk {
             ins.print_ins(line, None);
         }
     }
+
+    pub fn emit_jump(&mut self, instruction: Instruction, line: usize) -> usize {
+        self.add_instruction(instruction, line);
+        self.code.len() - 1
+    }
 }
 
 impl std::ops::Index<usize> for Chunk {
