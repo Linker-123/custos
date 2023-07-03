@@ -47,6 +47,8 @@ pub async fn process_event(
                 let mut content = message.content.strip_prefix("!eval ").unwrap();
                 content = content.trim();
 
+                println!("Content = {}", content);
+
                 let (args, mut content) = content.split_once("```").unwrap();
                 let args = args
                     .split_whitespace()
